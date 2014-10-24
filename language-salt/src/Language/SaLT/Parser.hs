@@ -17,6 +17,10 @@ import           Text.Trifecta.Indentation
 import           Language.SaLT.AST
 import           Language.SaLT.ParserDef as P
 
+
+parseSaltFile :: (MonadIO m) => FilePath -> m ()
+parseSaltFile file = parseFromFile (runSaltParser program) file >>= liftIO . print
+
 program :: SaltParser Program
 program = whiteSpace >> Program
           <$> (many $ absoluteIndentation decl)
@@ -64,13 +68,12 @@ complexType = choice
 simpleType :: SaltParser Type
 simpleType = choice
     [ TVar <$> varIdent
+    , TSet <$> braces functionType
     , TCon <$> conIdent <*> pure []
     , TCon "List" . pure <$> brackets functionType
-    , parensType <$> parens (localIndentation Any $ commaSep functionType)
+    , try $ symbol "(" >> TTup <$> functionType <* comma <*> functionType <* symbol ")"
+    , parens (localIndentation Any $ functionType)
     ]
-  where
-    parensType [x] = x
-    parensType xs = TTup xs
 
 typeDecl :: SaltParser TyDecl
 typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> functionType where
@@ -82,8 +85,9 @@ typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> funct
 
 -- * Expression Parsing
 
-opTable = [ [ Infix (prim2 PrimAdd <$ symbol "+") AssocLeft ]
-          , [ Infix (prim2 PrimEq <$ symbol "==") AssocLeft ]
+opTable = [ [ Infix (prim2 PrimAdd  <$ symbol "+")   AssocLeft ]
+          , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocLeft ]
+          , [ Infix (prim2 PrimBind <$ symbol ">>=") AssocLeft ]
           ]
   where
     prim2 p x y = EPrim p [x, y]
@@ -105,7 +109,9 @@ verySimpleExpr = choice
   , conE
   , litE
   , listE
-  , tupOrParensE
+  , singletonSetE
+  , try pairE
+  , parens expression
   ]
 
 appE :: SaltParser Exp
@@ -123,23 +129,8 @@ conE = ECon
        <*> option [] (annotBrackets $ commaSep functionType)
        <*> option [] (parens $ commaSep expression)
 
--- | syntactic sugar: [a,b,...] --> Cons(a,Cons(b,...))
-listE :: SaltParser Exp
-listE = do
-  list <- brackets $ commaSep expression
-  ty   <- annotBrackets functionType
-  let
-    cons x xs = ECon "Cons" [ty] [x, xs]
-    nil = ECon "Nil" [ty] []
-  return $ foldr cons nil list
-
-
-tupOrParensE :: SaltParser Exp
-tupOrParensE = do
-  vals <- parens (commaSep expression)
-  case vals of
-    [x] -> return x
-    xs  -> return $ ETup xs
+pairE :: SaltParser Exp
+pairE = symbol "(" >> EPair <$> expression <* comma <*> expression <* symbol ")"
 
 litE :: SaltParser Exp
 litE = ELit . LInt <$> highlight H.Number natural
@@ -162,6 +153,21 @@ caseE = do
     return (ECase scrutinee alts)
   where
     alt = Alt <$> pattern <* symbol "->" <*> expression
+
+singletonSetE :: SaltParser Exp
+singletonSetE = ESet <$> braces expression
+
+-- * Syntactic Sugar
+
+-- | syntactic sugar: [a,b,...] --> Cons(a,Cons(b,...))
+listE :: SaltParser Exp
+listE = do
+  list <- brackets $ commaSep expression
+  ty   <- annotBrackets functionType
+  let
+    cons x xs = ECon "Cons" [ty] [x, xs]
+    nil = ECon "Nil" [ty] []
+  return $ foldr cons nil list
 
 -- * Pattern Parsing
 

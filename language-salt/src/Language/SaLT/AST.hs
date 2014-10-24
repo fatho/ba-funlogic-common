@@ -33,10 +33,12 @@ data TyConstraint
 data Type
   = TVar  Name
   | TCon  Name [Type]
-  | TFun  Type Type
-  | TSet  Type
-  | TTup  [Type]
   deriving (Show)
+
+-- Useful Type Pattern Synonyms
+pattern TFun x y = TCon "->" [x, y]
+pattern TSet x   = TCon "Set" [x]
+pattern TTup x y = TCon "Pair" [x, y]
 
 data Exp
   = EVar Name
@@ -46,10 +48,9 @@ data Exp
   | ELit Lit
   | EPrim PrimOp [Exp]
   | ECon Name [Type] [Exp]
-  | ETup [Exp]
+  | EPair Exp Exp
+  | ESet Exp
   | ECase Exp [Alt]
-  | ESet [Exp]
-  | ESetBind Exp Name Exp
   | EFail Type
   | EAny Type
   deriving (Show)
@@ -61,6 +62,7 @@ data Lit
 data PrimOp
   = PrimAdd
   | PrimEq
+  | PrimBind
   deriving (Show)
 
 data Alt
