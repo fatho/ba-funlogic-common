@@ -10,15 +10,15 @@ not = \x :: Bool -> case x of
               False -> True
 
 tMap :: forall a b.(a -> b) -> (a,a) -> (b,b)
-tMap = \f :: (a->b) -> 
+tMap = \f :: (a->b) ->
        \x :: (a,a)  -> case x of (a,b) -> (f a, f b)
 
 sMap :: forall a b.(a -> b) -> Set a -> Set b
-sMap = \f :: (a -> b) -> 
+sMap = \f :: (a -> b) ->
        \xs :: {a} -> xs >>= \x :: a -> {f x}
 
 filter :: forall a.(a -> Bool) -> [a] -> [a]
-filter = \f :: (a -> Bool) -> 
+filter = \f :: (a -> Bool) ->
          \x :: [a] -> case x of
            Nil -> Nil
            Cons(y,ys) -> case f y of

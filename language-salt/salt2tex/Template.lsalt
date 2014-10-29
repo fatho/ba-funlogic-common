@@ -1,0 +1,13 @@
+\documentclass{article}
+%include polycode.fmt
+%include forall.fmt
+%%include lambda.fmt
+%format tau = "\tau"
+%format <: = "_{"
+%format :> = "}~"
+%format (Set x) = "\{" x "\}"
+\begin{document}
+\begin{code}
+CODEHERE
+\end{code}
+\end{document}
