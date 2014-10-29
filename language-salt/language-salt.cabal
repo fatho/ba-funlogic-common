@@ -20,13 +20,18 @@ library
                      , Language.SaLT.Parser
                      , Language.SaLT.ParserDef
   -- other-modules:       
-  other-extensions:    
+  other-extensions:    TemplateHaskell
+                     , RankNTypes
+                     , LambdaCase
+                     , RecordWildCards
+
   build-depends:       base                 ==4.7.*
                      , text                 ==1.1.*
                      , trifecta             ==1.4.*
                      , parsers              ==0.11.*
                      , lens                 ==4.4.*
                      , mtl                  ==2.1.*
+                     , containers           ==0.5.*
                      , unordered-containers ==0.2.*
                      , safe                 ==0.3.*
                      , indentation          ==0.2.*

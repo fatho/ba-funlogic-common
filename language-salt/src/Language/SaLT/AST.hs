@@ -1,6 +1,8 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms, TemplateHaskell #-}
 module Language.SaLT.AST where
 
+import Control.Lens
+import qualified Data.Map as M
 import Data.Text
 
 type Name = String
@@ -8,11 +10,27 @@ type Name = String
 type Column = Int
 type Row    = Int
 
-data Program = Program [Decl] deriving (Show)
+data Module = Module
+  { _modName   :: Name
+  , _modBinds  :: M.Map Name Binding
+  , _modADTs   :: M.Map Name ADT
+  , _modConstr :: M.Map Name TyDecl
+  } deriving (Show)
+
+data Binding = Binding
+  { _bindingExpr :: Exp
+  , _bindingType :: TyDecl
+  } deriving (Show)
+
+data ADT = ADT
+  { _adtName   :: Name
+  , _adtTyArgs :: [Name]
+  , _adtConstr :: [ConDecl]
+  } deriving (Show)
 
 data Decl
-  = DTop Name TyDecl Exp
-  | DData Name [Name] [ConDecl]
+  = DTop Name Binding
+  | DData ADT
   deriving (Show)
 
 data ConDecl
@@ -74,3 +92,8 @@ data Pat
   | PTup [Name]
   | PVar Name
   deriving (Show)
+
+-- Lenses
+makeLenses ''Module
+makeLenses ''Binding
+makeLenses ''ADT

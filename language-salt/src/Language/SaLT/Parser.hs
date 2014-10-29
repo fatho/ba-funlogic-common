@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE TemplateHaskell, RankNTypes, LambdaCase, RecordWildCards #-}
 module Language.SaLT.Parser where
 
 import           Control.Applicative
@@ -6,7 +6,8 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State
 import qualified Data.HashSet as HS
-import           Safe
+import qualified Data.Map as M
+import           Safe hiding (at)
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -17,24 +18,43 @@ import           Text.Trifecta.Indentation
 import           Language.SaLT.AST
 import           Language.SaLT.ParserDef as P
 
-
 parseSaltFile :: (MonadIO m) => FilePath -> m ()
 parseSaltFile file = parseFromFile (runSaltParser program) file >>= liftIO . print
 
-program :: SaltParser Program
-program = whiteSpace >> Program
-          <$> (many $ absoluteIndentation decl)
-          <* eof
-          
+program :: SaltParser Module
+program = whiteSpace *> (many $ absoluteIndentation decl) <* eof >>= \ds -> execStateT (mapM_ collectDecl ds) (emptyModule "Main") where
+  emptyModule name = Module
+                     { _modName = name
+                     , _modBinds = M.empty
+                     , _modADTs = M.empty
+                     , _modConstr = M.empty
+                     }
+  collectDecl d = case d of
+    DTop topName binding -> modBinds `uses` M.member topName >>= \case
+      True  -> fail ("top-level " ++ topName ++ "is declared more than once")
+      False -> modBinds . at topName .= Just binding
+
+    DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
+      True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
+      False -> do
+        modADTs . at _adtName .= Just adt
+        forM_ (_adtConstr) $ \con@(ConDecl name args) -> do
+          modConstr `uses` M.member name >>= \case
+            True  -> fail ("constructor " ++ name ++ " is declared more than once")
+            False -> do
+              -- construct type from arguments
+              let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
+              modConstr . at name .= Just (TyDecl _adtTyArgs [] conTy)
+
 -- * Declaration Parsing
 
 decl :: SaltParser Decl
 decl = dataDecl <|> topLevelDecl
 
 dataDecl :: SaltParser Decl
-dataDecl = localIndentation Gt $ do
+dataDecl = localIndentation Gt $ DData <$> do
   reserved "data"
-  DData
+  ADT
     <$> conIdent
     <*> many varIdent
     <*  symbolic '='
@@ -48,7 +68,7 @@ topLevelDecl = do
     (name, ty)    <- absoluteIndentation topLevelType
     (name', body) <- absoluteIndentation topLevelBody
     unless (name' == name) (fail "type declaration does not match body declaration")
-    return $ DTop name ty body
+    return $ DTop name (Binding body ty)
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression
