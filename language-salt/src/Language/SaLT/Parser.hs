@@ -18,33 +18,47 @@ import           Text.Trifecta.Indentation
 import           Language.SaLT.AST
 import           Language.SaLT.ParserDef as P
 
-parseSaltFile :: (MonadIO m) => FilePath -> m ()
-parseSaltFile file = parseFromFile (runSaltParser program) file >>= liftIO . print
+parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
+parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
+
+parseSaltTest :: (MonadIO m, Show a) => SaltParser a -> String -> m ()
+parseSaltTest p xs = do
+  liftIO $ putStrLn xs
+  liftIO $ putStrLn "-----------------------------------"
+  parseTest (runSaltParser "<interactive>" p) xs
+
+
+parseSaltFile :: (MonadIO m) => FilePath -> m (Maybe Module)
+parseSaltFile file = parseFromFile (runSaltParser file program) file
 
 program :: SaltParser Module
-program = whiteSpace *> (many $ absoluteIndentation decl) <* eof >>= \ds -> execStateT (mapM_ collectDecl ds) (emptyModule "Main") where
-  emptyModule name = Module
-                     { _modName = name
-                     , _modBinds = M.empty
-                     , _modADTs = M.empty
-                     , _modConstr = M.empty
-                     }
-  collectDecl d = case d of
-    DTop topName binding -> modBinds `uses` M.member topName >>= \case
-      True  -> fail ("top-level " ++ topName ++ "is declared more than once")
-      False -> modBinds . at topName .= Just binding
+program =
+  do
+    decls <- whiteSpace *> many (absoluteIndentation decl) <* eof
+    execStateT (mapM_ collectDecl decls) (emptyModule "Main")
+  where
+    emptyModule name = Module
+      { _modName = name
+      , _modBinds = M.empty
+      , _modADTs = M.empty
+      , _modConstr = M.empty
+      }
+    collectDecl d = case d of
+      DTop topName binding -> modBinds `uses` M.member topName >>= \case
+        True  -> fail ("top-level " ++ topName ++ "is declared more than once")
+        False -> modBinds . at topName .= Just binding
 
-    DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
-      True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
-      False -> do
-        modADTs . at _adtName .= Just adt
-        forM_ (_adtConstr) $ \con@(ConDecl name args) -> do
-          modConstr `uses` M.member name >>= \case
-            True  -> fail ("constructor " ++ name ++ " is declared more than once")
-            False -> do
-              -- construct type from arguments
-              let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
-              modConstr . at name .= Just (TyDecl _adtTyArgs [] conTy)
+      DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
+        True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
+        False -> do
+          modADTs . at _adtName .= Just adt
+          forM_ (_adtConstr) $ \con@(ConDecl name args) -> do
+            modConstr `uses` M.member name >>= \case
+              True  -> fail ("constructor " ++ name ++ " is declared more than once")
+              False -> do
+                -- construct type from arguments
+                let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
+                modConstr . at name .= Just (TyDecl _adtTyArgs [] conTy)
 
 -- * Declaration Parsing
 
@@ -54,21 +68,25 @@ decl = dataDecl <|> topLevelDecl
 dataDecl :: SaltParser Decl
 dataDecl = localIndentation Gt $ DData <$> do
   reserved "data"
-  ADT
-    <$> conIdent
-    <*> many varIdent
-    <*  symbolic '='
-    <*> body
+  ((name, vars, cons), ref) <-
+    captureSrcRef $ (,,)
+      <$> conIdent
+      <*> many tyVarIdent
+      <*  symbolic '='
+      <*> body
+  return $ ADT name vars cons ref
   where
     body    = conDecl `sepBy1` (symbol "|")
     conDecl = ConDecl <$> conIdent <*> many simpleType
 
 topLevelDecl :: SaltParser Decl
 topLevelDecl = do
-    (name, ty)    <- absoluteIndentation topLevelType
-    (name', body) <- absoluteIndentation topLevelBody
-    unless (name' == name) (fail "type declaration does not match body declaration")
-    return $ DTop name (Binding body ty)
+    ((name, ty, body), ref) <- captureSrcRef $ do
+      (name, ty)    <- absoluteIndentation topLevelType
+      (name', body) <- absoluteIndentation topLevelBody
+      unless (name' == name) (fail "type declaration does not match body declaration")
+      return (name, ty, body)
+    return $ DTop name (Binding body ty ref)
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression
@@ -87,7 +105,7 @@ complexType = choice
 
 simpleType :: SaltParser Type
 simpleType = choice
-    [ TVar <$> varIdent
+    [ TVar <$> tyVarIdent
     , TSet <$> braces functionType
     , TCon <$> conIdent <*> pure []
     , TCon "List" . pure <$> brackets functionType
@@ -97,11 +115,11 @@ simpleType = choice
 
 typeDecl :: SaltParser TyDecl
 typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> functionType where
-  forallVars = reserved "forall" *> many varIdent <* symbol "."
+  forallVars = reserved "forall" *> many tyVarIdent <* symbol "."
   context    = ( parens (commaSep constraint)
                  <|> liftM pure constraint
                ) <* symbol "=>"
-  constraint = TyConstraint <$> conIdent <*> varIdent
+  constraint = TyConstraint <$> conIdent <*> tyVarIdent
 
 -- * Expression Parsing
 
@@ -169,10 +187,13 @@ caseE = do
     reserved "case"
     scrutinee <- expression
     reserved "of"
-    alts <- localIndentation Gt (some $ absoluteIndentation alt)
-    return (ECase scrutinee alts)
+    as <- eAlts <|> iAlts
+    return (ECase scrutinee as)
   where
-    alt = Alt <$> pattern <* symbol "->" <*> expression
+    iAlts = localIndentation Gt (some $ absoluteIndentation alt)
+    eAlts = symbol "{" *> localIndentation Any (alt `sepEndBy` semi) <* localIndentation Any (symbol "}")
+    alts  = alt `sepEndBy` semi
+    alt   = Alt <$> pattern <* symbol "->" <*> expression
 
 singletonSetE :: SaltParser Exp
 singletonSetE = ESet <$> braces expression

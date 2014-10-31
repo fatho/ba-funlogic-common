@@ -1,7 +1,9 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, TemplateHaskell #-}
 module Language.SaLT.ParserDef where
 
 import           Control.Applicative
-import           Control.Lens
+import           Control.Arrow
+import           Control.Lens hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
 import qualified Data.HashSet as HS
@@ -15,16 +17,34 @@ import           Text.Trifecta.Indentation
 import           Language.SaLT.AST
 
 
-type SaltParser = IndentationParserT Char Parser
+newtype SaltParser a = SaltParser { runSaltParser' :: StateT SaltPState (IndentationParserT Char Parser) a }
+  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus, MonadState SaltPState)
 
-parseSaltTest :: (MonadIO m, Show a) => SaltParser a -> String -> m ()
-parseSaltTest p xs = do
-  liftIO $ putStrLn xs
-  liftIO $ putStrLn "-----------------------------------"
-  parseTest (runSaltParser p) xs
+deriving instance Parsing SaltParser
+deriving instance CharParsing SaltParser
+deriving instance DeltaParsing SaltParser
+deriving instance IndentationParsing SaltParser
 
-runSaltParser :: SaltParser a -> Parser a
-runSaltParser p = evalIndentationParserT p $ mkIndentationState 0 infIndentation False Gt
+instance TokenParsing SaltParser where
+  someSpace = SaltParser $ lift $ lift $ skipSome (void space <|> comment) where
+    comment   = void (string "{-") *> inComment
+    inComment =     void (string "-}")
+                <|> skipSome (void (noneOf startEnd) <|> comment) *> inComment
+                <|> oneOf startEnd *> inComment
+    startEnd  = "{-}"
+
+data SaltPState
+  = SaltPState
+    { _inputName :: String
+    } deriving (Show)
+makeLenses ''SaltPState
+
+runSaltParser :: String -> SaltParser a -> Parser a
+runSaltParser name p = evalIndentationParserT
+                         (evalStateT (runSaltParser' p) pstate)
+                         (mkIndentationState 0 infIndentation False Gt)
+  where
+    pstate = SaltPState name
 
 saltVarStyle :: IdentifierStyle SaltParser
 saltVarStyle = IdentifierStyle
@@ -50,13 +70,40 @@ saltConStyle = IdentifierStyle
             }
 
 conIdent :: SaltParser Name 
-conIdent   = ident saltConStyle
+conIdent = ident saltConStyle
 
 reservedCon :: String -> SaltParser ()
 reservedCon = reserve saltConStyle
 
 varIdent :: SaltParser Name 
-varIdent   = ident saltVarStyle
+varIdent = ident saltVarStyle
+
+tyVarIdent :: SaltParser TVName 
+tyVarIdent = RName <$> ident saltVarStyle
 
 reserved :: String -> SaltParser ()
 reserved = reserve saltVarStyle
+
+-- | Get line number from position
+lineNum :: Delta -> Int
+lineNum (Lines l _ _ _)      = fromIntegral l + 1
+lineNum (Directed _ l _ _ _) = fromIntegral l + 1
+lineNum _ = 0
+
+-- | Get column number from position
+columnNum :: Delta -> Int
+columnNum pos = fromIntegral (column pos) + 1
+
+-- | Get current position in source file.
+srcPos :: DeltaParsing m => m (Row,Column)
+srcPos = (lineNum &&& columnNum) <$> position
+
+-- | Capture range of source file consumed by the parser.
+captureSrcRef :: SaltParser a -> SaltParser (a, SrcRef)
+captureSrcRef parse = do
+  file <- use inputName
+  start <- srcPos
+  value <- parse
+  end   <- srcPos
+  return (value, SrcRef file start end)
+  
