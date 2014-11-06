@@ -10,7 +10,7 @@ module Language.SaLT.AST
   , Alt(..)
   , Pat(..)
   , modName, modADTs, modBinds, modConstr
-  , bindingExpr, bindingType, bindingSrc
+  , bindingName, bindingExpr, bindingType, bindingSrc
   ) where
 
 import Control.Lens
@@ -26,13 +26,14 @@ data Module = Module
   } deriving (Show)
 
 data Binding = Binding
-  { _bindingExpr :: Exp
+  { _bindingName :: Name
+  , _bindingExpr :: Exp
   , _bindingType :: TyDecl
   , _bindingSrc  :: SrcRef
   } deriving (Show)
 
 data Decl
-  = DTop Name Binding
+  = DTop Binding
   | DData ADT
   deriving (Show)
 

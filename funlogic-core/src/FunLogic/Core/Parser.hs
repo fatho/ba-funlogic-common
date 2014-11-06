@@ -24,13 +24,11 @@ class Parsing m => FileParsing m where
 adtParser :: MonadicParsing m => m ADT
 adtParser = localIndentation Gt $ do
     reserved "data"
-    ((name, vars, cons), ref) <-
-      captureSrcRef $ (,,)
-        <$> conIdent
-        <*> many tyVarIdent
-        <*  symbolic '='
-        <*> body
-    return $ ADT name vars cons ref
+    captureSrcRef $ ADT
+      <$> conIdent
+      <*> many tyVarIdent
+      <*  symbolic '='
+      <*> body
   where
     body    = conDecl `sepBy1` (symbol "|")
     conDecl = ConDecl <$> conIdent <*> many simpleType
@@ -45,6 +43,7 @@ varStyle = IdentifierStyle
             , _styleReserved = HS.fromList
                 [ "failed", "unknown"
                 , "forall", "case", "of"
+                , "let", "in", "free"
                 ]
             , _styleHighlight = H.Identifier
             , _styleReservedHighlight = H.ReservedIdentifier
@@ -108,6 +107,8 @@ typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> funct
 annotBrackets :: TokenParsing m => m a -> m a
 annotBrackets p = symbol "<:" *> p <* symbol ":>"
 
+optionalAnnotBrackets :: TokenParsing m => m a -> m (Maybe a)
+optionalAnnotBrackets p = option Nothing (Just <$> annotBrackets p)
 
 -- | Get line number from position
 lineNum :: Delta -> Int
@@ -124,11 +125,10 @@ srcPos :: DeltaParsing m => m (Row,Column)
 srcPos = (lineNum &&& columnNum) <$> position
 
 -- | Capture range of source file consumed by the parser.
-captureSrcRef :: (FileParsing m, DeltaParsing m) => m a -> m (a, SrcRef)
+captureSrcRef :: (FileParsing m, DeltaParsing m) => m (SrcRef -> a) -> m a
 captureSrcRef parse = do
   fn <- fileName
   start <- srcPos
   value <- parse
   end   <- srcPos
-  return (value, SrcRef fn start end)
-
+  return $ value (SrcRef fn start end)

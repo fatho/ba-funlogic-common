@@ -18,7 +18,6 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Language.SaLT.AST
                      , Language.SaLT.Parser
-                     , Language.SaLT.ParserDef
   -- other-modules:       
   other-extensions:    TemplateHaskell
                      , RankNTypes

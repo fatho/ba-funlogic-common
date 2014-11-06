@@ -1,11 +1,15 @@
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RankNTypes      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 module Language.SaLT.Parser where
 
 import           Control.Applicative
-import           Control.Lens
+import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
 import qualified Data.Map                    as M
@@ -14,9 +18,40 @@ import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
 import           Text.Trifecta.Indentation
 
-import           Language.SaLT.AST
-import           Language.SaLT.ParserDef     as P
 import           FunLogic.Core.Parser        as P
+import           Language.SaLT.AST
+
+newtype SaltParser a = SaltParser { runSaltParser' :: StateT SaltPState (IndentationParserT Char Parser) a }
+  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus, MonadState SaltPState)
+
+deriving instance Parsing SaltParser
+deriving instance CharParsing SaltParser
+deriving instance DeltaParsing SaltParser
+deriving instance IndentationParsing SaltParser
+
+instance TokenParsing SaltParser where
+  someSpace = SaltParser $ lift $ lift $ skipSome (void space <|> comment) where
+    comment   = void (string "{-") *> inComment
+    inComment =     void (string "-}")
+                <|> skipSome (void (noneOf startEnd) <|> comment) *> inComment
+                <|> oneOf startEnd *> inComment
+    startEnd  = "{-}"
+
+data SaltPState
+  = SaltPState
+    { _inputName :: String
+    } deriving (Show)
+makeLenses ''SaltPState
+
+runSaltParser :: String -> SaltParser a -> Parser a
+runSaltParser name p = evalIndentationParserT
+                         (evalStateT (runSaltParser' p) pstate)
+                         (mkIndentationState 0 infIndentation False Gt)
+  where
+    pstate = SaltPState name
+
+instance FileParsing SaltParser where
+  fileName = use inputName
 
 parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
 parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
@@ -44,9 +79,10 @@ program =
       , _modConstr = M.empty
       }
     collectDecl d = case d of
-      DTop topName binding -> modBinds `uses` M.member topName >>= \case
-        True  -> fail ("top-level " ++ topName ++ "is declared more than once")
-        False -> modBinds . at topName .= Just binding
+      DTop binding -> let topName = binding ^. bindingName
+        in modBinds `uses` M.member topName >>= \case
+          True  -> fail ("top-level " ++ topName ++ "is declared more than once")
+          False -> modBinds . at topName .= Just binding
 
       DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
         True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
@@ -69,13 +105,12 @@ dataDecl :: SaltParser Decl
 dataDecl = localIndentation Gt $ DData <$> adtParser
 
 topLevelDecl :: SaltParser Decl
-topLevelDecl = do
-    ((name, ty, body), ref) <- captureSrcRef $ do
+topLevelDecl =
+    captureSrcRef $ do
       (name, ty)    <- absoluteIndentation topLevelType
       (name', body) <- absoluteIndentation topLevelBody
       unless (name' == name) (fail "type declaration does not match body declaration")
-      return (name, ty, body)
-    return $ DTop name (Binding body ty ref)
+      return $ DTop . Binding name body ty
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression
