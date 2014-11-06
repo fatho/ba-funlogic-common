@@ -1,13 +1,17 @@
-{-# LANGUAGE TemplateHaskell, RankNTypes, LambdaCase, RecordWildCards #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RankNTypes      #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.SaLT.Parser where
 
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.HashSet as HS
-import qualified Data.Map as M
-import           Safe hiding (at)
+import qualified Data.HashSet                as HS
+import qualified Data.Map                    as M
+import           Safe                        hiding (at)
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -16,7 +20,7 @@ import           Text.Trifecta.Delta
 import           Text.Trifecta.Indentation
 
 import           Language.SaLT.AST
-import           Language.SaLT.ParserDef as P
+import           Language.SaLT.ParserDef     as P
 
 parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
 parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
@@ -93,10 +97,12 @@ topLevelDecl = do
 
 -- * Type Parsing
 
-functionType :: SaltParser Type
-functionType = chainr1 complexType (TFun <$ symbol "->") 
+pattern TSet x = TCon "Set" [x]
 
-complexType :: SaltParser Type 
+functionType :: SaltParser Type
+functionType = chainr1 complexType (TFun <$ symbol "->")
+
+complexType :: SaltParser Type
 complexType = choice
   [ TSet <$> (reservedCon "Set" *> simpleType)
   , TCon <$> conIdent <*> try (many simpleType)
@@ -192,8 +198,7 @@ caseE = do
   where
     iAlts = localIndentation Gt (some $ absoluteIndentation alt)
     eAlts = symbol "{" *> localIndentation Any (alt `sepEndBy` semi) <* localIndentation Any (symbol "}")
-    alts  = alt `sepEndBy` semi
-    alt   = Alt <$> pattern <* symbol "->" <*> expression
+    alt   = Alt <$> patternP <* symbol "->" <*> expression
 
 singletonSetE :: SaltParser Exp
 singletonSetE = ESet <$> braces expression
@@ -206,19 +211,18 @@ listE = do
   list <- brackets $ commaSep expression
   ty   <- annotBrackets functionType
   let
-    cons x xs = ECon "Cons" [ty] [x, xs]
-    nil = ECon "Nil" [ty] []
-  return $ foldr cons nil list
+    consP x xs = ECon "Cons" [ty] [x, xs]
+    nilP = ECon "Nil" [ty] []
+  return $ foldr consP nilP list
 
 -- * Pattern Parsing
 
-pattern :: SaltParser Pat
-pattern = choice [conP, varP, tupP]
-
-conP = PCon <$> conIdent <*> option [] (parens $ commaSep varIdent)
-tupP = PTup <$> parens (commaSep varIdent)
-varP = PVar <$> varIdent
-
+patternP :: SaltParser Pat
+patternP = choice
+  [ PCon <$> conIdent <*> option [] (parens $ commaSep varIdent)
+  , PCon "Pair" <$> parens ((\x y -> [x,y]) <$> varIdent <* comma <*> varIdent)
+  , PVar <$> varIdent
+  ]
 
 -- * Helpers
 

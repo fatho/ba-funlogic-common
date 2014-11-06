@@ -79,7 +79,7 @@ varIdent :: SaltParser Name
 varIdent = ident saltVarStyle
 
 tyVarIdent :: SaltParser TVName 
-tyVarIdent = RName <$> ident saltVarStyle
+tyVarIdent = ident saltVarStyle
 
 reserved :: String -> SaltParser ()
 reserved = reserve saltVarStyle
