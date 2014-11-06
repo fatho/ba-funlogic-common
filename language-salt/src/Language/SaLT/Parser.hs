@@ -67,14 +67,14 @@ decl = dataDecl <|> topLevelDecl
 
 dataDecl :: SaltParser Decl
 dataDecl = localIndentation Gt $ DData <$> do
-  reserved "data"
-  ((name, vars, cons), ref) <-
-    captureSrcRef $ (,,)
-      <$> conIdent
-      <*> many tyVarIdent
-      <*  symbolic '='
-      <*> body
-  return $ ADT name vars cons ref
+    reserved "data"
+    ((name, vars, cons), ref) <-
+      captureSrcRef $ (,,)
+        <$> conIdent
+        <*> many tyVarIdent
+        <*  symbolic '='
+        <*> body
+    return $ ADT name vars cons ref
   where
     body    = conDecl `sepBy1` (symbol "|")
     conDecl = ConDecl <$> conIdent <*> many simpleType
