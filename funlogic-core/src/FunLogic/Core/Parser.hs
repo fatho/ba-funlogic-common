@@ -105,6 +105,10 @@ typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> funct
 
 -- * Common Functions
 
+annotBrackets :: TokenParsing m => m a -> m a
+annotBrackets p = symbol "<:" *> p <* symbol ":>"
+
+
 -- | Get line number from position
 lineNum :: Delta -> Int
 lineNum (Lines l _ _ _)      = fromIntegral l + 1

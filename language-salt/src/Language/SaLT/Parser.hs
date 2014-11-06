@@ -177,8 +177,3 @@ patternP = choice
   , PCon "Pair" <$> parens ((\x y -> [x,y]) <$> varIdent <* comma <*> varIdent)
   , PVar <$> varIdent
   ]
-
--- * Helpers
-
-annotBrackets :: SaltParser a -> SaltParser a
-annotBrackets p = symbol "<:" *> p <* symbol ":>"
