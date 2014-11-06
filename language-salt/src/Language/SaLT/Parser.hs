@@ -2,25 +2,21 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 module Language.SaLT.Parser where
 
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.HashSet                as HS
 import qualified Data.Map                    as M
-import           Safe                        hiding (at)
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
-import           Text.Trifecta.Combinators
-import           Text.Trifecta.Delta
 import           Text.Trifecta.Indentation
 
 import           Language.SaLT.AST
 import           Language.SaLT.ParserDef     as P
+import           FunLogic.Core.Parser        as P
 
 parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
 parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
@@ -56,7 +52,7 @@ program =
         True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
         False -> do
           modADTs . at _adtName .= Just adt
-          forM_ (_adtConstr) $ \con@(ConDecl name args) -> do
+          forM_ _adtConstr $ \con@(ConDecl name args) ->
             modConstr `uses` M.member name >>= \case
               True  -> fail ("constructor " ++ name ++ " is declared more than once")
               False -> do
@@ -70,18 +66,7 @@ decl :: SaltParser Decl
 decl = dataDecl <|> topLevelDecl
 
 dataDecl :: SaltParser Decl
-dataDecl = localIndentation Gt $ DData <$> do
-    reserved "data"
-    ((name, vars, cons), ref) <-
-      captureSrcRef $ (,,)
-        <$> conIdent
-        <*> many tyVarIdent
-        <*  symbolic '='
-        <*> body
-    return $ ADT name vars cons ref
-  where
-    body    = conDecl `sepBy1` (symbol "|")
-    conDecl = ConDecl <$> conIdent <*> many simpleType
+dataDecl = localIndentation Gt $ DData <$> adtParser
 
 topLevelDecl :: SaltParser Decl
 topLevelDecl = do
@@ -95,40 +80,9 @@ topLevelDecl = do
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression
 
--- * Type Parsing
-
-pattern TSet x = TCon "Set" [x]
-
-functionType :: SaltParser Type
-functionType = chainr1 complexType (TFun <$ symbol "->")
-
-complexType :: SaltParser Type
-complexType = choice
-  [ TSet <$> (reservedCon "Set" *> simpleType)
-  , TCon <$> conIdent <*> try (many simpleType)
-  , try simpleType
-  ]
-
-simpleType :: SaltParser Type
-simpleType = choice
-    [ TVar <$> tyVarIdent
-    , TSet <$> braces functionType
-    , TCon <$> conIdent <*> pure []
-    , TCon "List" . pure <$> brackets functionType
-    , try $ symbol "(" >> TTup <$> functionType <* comma <*> functionType <* symbol ")"
-    , parens (localIndentation Any $ functionType)
-    ]
-
-typeDecl :: SaltParser TyDecl
-typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> functionType where
-  forallVars = reserved "forall" *> many tyVarIdent <* symbol "."
-  context    = ( parens (commaSep constraint)
-                 <|> liftM pure constraint
-               ) <* symbol "=>"
-  constraint = TyConstraint <$> conIdent <*> tyVarIdent
-
 -- * Expression Parsing
 
+opTable :: [[Operator SaltParser Exp]]
 opTable = [ [ Infix (prim2 PrimAdd  <$ symbol "+")   AssocLeft ]
           , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocLeft ]
           , [ Infix (prim2 PrimBind <$ symbol ">>=") AssocLeft ]

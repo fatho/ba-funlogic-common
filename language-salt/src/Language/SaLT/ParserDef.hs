@@ -15,6 +15,7 @@ import           Text.Trifecta.Delta
 import           Text.Trifecta.Indentation
 
 import           Language.SaLT.AST
+import           FunLogic.Core.Parser
 
 
 newtype SaltParser a = SaltParser { runSaltParser' :: StateT SaltPState (IndentationParserT Char Parser) a }
@@ -46,64 +47,5 @@ runSaltParser name p = evalIndentationParserT
   where
     pstate = SaltPState name
 
-saltVarStyle :: IdentifierStyle SaltParser
-saltVarStyle = IdentifierStyle
-            { _styleName      = "identifier"
-            , _styleStart     = lower
-            , _styleLetter    = alphaNum <|> oneOf "_'"
-            , _styleReserved = HS.fromList
-                [ "failed", "unknown"
-                , "forall", "case", "of"
-                ]
-            , _styleHighlight = H.Identifier
-            , _styleReservedHighlight = H.ReservedIdentifier
-            }
-
-saltConStyle :: IdentifierStyle SaltParser
-saltConStyle = IdentifierStyle
-            { _styleName      = "constructor"
-            , _styleStart     = upper
-            , _styleLetter    = alphaNum <|> oneOf "_'"
-            , _styleReserved  = HS.fromList ["Set"]
-            , _styleHighlight = H.Constructor
-            , _styleReservedHighlight = H.ReservedConstructor
-            }
-
-conIdent :: SaltParser Name 
-conIdent = ident saltConStyle
-
-reservedCon :: String -> SaltParser ()
-reservedCon = reserve saltConStyle
-
-varIdent :: SaltParser Name 
-varIdent = ident saltVarStyle
-
-tyVarIdent :: SaltParser TVName 
-tyVarIdent = ident saltVarStyle
-
-reserved :: String -> SaltParser ()
-reserved = reserve saltVarStyle
-
--- | Get line number from position
-lineNum :: Delta -> Int
-lineNum (Lines l _ _ _)      = fromIntegral l + 1
-lineNum (Directed _ l _ _ _) = fromIntegral l + 1
-lineNum _ = 0
-
--- | Get column number from position
-columnNum :: Delta -> Int
-columnNum pos = fromIntegral (column pos) + 1
-
--- | Get current position in source file.
-srcPos :: DeltaParsing m => m (Row,Column)
-srcPos = (lineNum &&& columnNum) <$> position
-
--- | Capture range of source file consumed by the parser.
-captureSrcRef :: SaltParser a -> SaltParser (a, SrcRef)
-captureSrcRef parse = do
-  file <- use inputName
-  start <- srcPos
-  value <- parse
-  end   <- srcPos
-  return (value, SrcRef file start end)
-  
+instance FileParsing SaltParser where
+  fileName = use inputName
