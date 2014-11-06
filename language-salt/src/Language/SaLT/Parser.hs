@@ -52,7 +52,7 @@ program =
         True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
         False -> do
           modADTs . at _adtName .= Just adt
-          forM_ _adtConstr $ \con@(ConDecl name args) ->
+          forM_ _adtConstr $ \(ConDecl name args) ->
             modConstr `uses` M.member name >>= \case
               True  -> fail ("constructor " ++ name ++ " is declared more than once")
               False -> do

@@ -1,22 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, FlexibleContexts, TemplateHaskell #-}
-module Language.SaLT.ParserDef where
+module Language.SaLT.ParserDef
+  ( SaltParser
+  , runSaltParser
+  ) where
 
 import           Control.Applicative
-import           Control.Arrow
 import           Control.Lens hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.HashSet as HS
-import           Safe
-import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
-import           Text.Trifecta.Combinators
-import           Text.Trifecta.Delta
 import           Text.Trifecta.Indentation
 
-import           Language.SaLT.AST
 import           FunLogic.Core.Parser
-
 
 newtype SaltParser a = SaltParser { runSaltParser' :: StateT SaltPState (IndentationParserT Char Parser) a }
   deriving ( Functor, Applicative, Alternative, Monad, MonadPlus, MonadState SaltPState)
