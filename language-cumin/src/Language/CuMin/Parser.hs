@@ -141,6 +141,7 @@ verySimpleExpr = choice
   , litE
   , listE
   , letE
+  , try pairE
   , parens expression
   ]
 
@@ -189,7 +190,12 @@ caseE = do
 
 -- * Syntactic Sugar
 
--- | syntactic sugar: [a,b,...] --> Cons(a,Cons(b,...))
+-- | syntactic sugar: (a, b) -> Pair a b
+pairE :: CuMinParser Exp
+pairE = parens $ mkPair <$> expression <* comma <*> expression where
+  mkPair x y = EApp (EApp (ECon "Pair" Nothing) x) y
+
+-- | syntactic sugar: [a,b,...] --> Cons a (Cons b ...)
 listE :: CuMinParser Exp
 listE = do
   list <- brackets $ commaSep expression
@@ -203,7 +209,6 @@ listE = do
 
 patternP :: CuMinParser Pat
 patternP = choice
-  [ PCon <$> conIdent <*> option [] (parens $ commaSep varIdent)
-  , PCon "Pair" <$> parens ((\x y -> [x,y]) <$> varIdent <* comma <*> varIdent)
+  [ PCon <$> conIdent <*> many varIdent
   , PVar <$> varIdent
   ]

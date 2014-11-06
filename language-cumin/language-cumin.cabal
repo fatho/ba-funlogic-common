@@ -16,7 +16,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  -- exposed-modules:     
+  exposed-modules:   Language.CuMin.AST
+                     Language.CuMin.Parser
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base                 ==4.7.*
