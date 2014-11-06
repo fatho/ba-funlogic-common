@@ -30,12 +30,7 @@ deriving instance DeltaParsing SaltParser
 deriving instance IndentationParsing SaltParser
 
 instance TokenParsing SaltParser where
-  someSpace = SaltParser $ lift $ lift $ skipSome (void space <|> comment) where
-    comment   = void (string "{-") *> inComment
-    inComment =     void (string "-}")
-                <|> skipSome (void (noneOf startEnd) <|> comment) *> inComment
-                <|> oneOf startEnd *> inComment
-    startEnd  = "{-}"
+  someSpace = SaltParser $ lift $ lift skipComments
 
 data SaltPState
   = SaltPState

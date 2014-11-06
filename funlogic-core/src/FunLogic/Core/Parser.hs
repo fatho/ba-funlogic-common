@@ -110,6 +110,14 @@ annotBrackets p = symbol "<:" *> p <* symbol ":>"
 optionalAnnotBrackets :: TokenParsing m => m a -> m (Maybe a)
 optionalAnnotBrackets p = option Nothing (Just <$> annotBrackets p)
 
+skipComments :: Parser ()
+skipComments = skipSome (void space <|> comment) where
+  comment   = void (string "{-") *> inComment
+  inComment =     void (string "-}")
+             <|> skipSome (void (noneOf startEnd) <|> comment) *> inComment
+             <|> oneOf startEnd *> inComment
+  startEnd  = "{-}"
+
 -- | Get line number from position
 lineNum :: Delta -> Int
 lineNum (Lines l _ _ _)      = fromIntegral l + 1

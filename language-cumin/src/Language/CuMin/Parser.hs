@@ -30,12 +30,7 @@ deriving instance DeltaParsing CuMinParser
 deriving instance IndentationParsing CuMinParser
 
 instance TokenParsing CuMinParser where
-  someSpace = CuMinParser $ lift $ lift $ skipSome (void space <|> comment) where
-    comment   = void (string "{-") *> inComment
-    inComment =     void (string "-}")
-                <|> skipSome (void (noneOf startEnd) <|> comment) *> inComment
-                <|> oneOf startEnd *> inComment
-    startEnd  = "{-}"
+  someSpace = CuMinParser $ lift $ lift skipComments
 
 data CuMinPState
   = CuMinPState
