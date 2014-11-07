@@ -71,7 +71,6 @@ program =
       { _modName = name
       , _modBinds = M.empty
       , _modADTs = M.empty
-      , _modConstr = M.empty
       }
     collectDecl d = case d of
       DTop binding -> let topName = binding ^. bindingName
@@ -81,15 +80,8 @@ program =
 
       DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
         True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
-        False -> do
-          modADTs . at _adtName .= Just adt
-          forM_ _adtConstr $ \(ConDecl name args) ->
-            modConstr `uses` M.member name >>= \case
-              True  -> fail ("constructor " ++ name ++ " is declared more than once")
-              False -> do
-                -- construct type from arguments
-                let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
-                modConstr . at name .= Just (TyDecl _adtTyArgs [] conTy)
+        False -> modADTs . at _adtName .= Just adt
+        -- TODO: verify that no constructor name is defined more than once
 
 -- * Declaration Parsing
 
@@ -134,11 +126,12 @@ verySimpleExpr :: SaltParser Exp
 verySimpleExpr = choice
   [ try funE
   , varE
+  , unknownE
+  , failedE
   , conE
   , litE
   , listE
   , singletonSetE
-  , try pairE
   , parens expression
   ]
 
@@ -151,14 +144,16 @@ funE = EFun <$> varIdent <*> annotBrackets (commaSep functionType)
 varE :: SaltParser Exp
 varE = EVar <$> varIdent
 
+unknownE :: SaltParser Exp
+unknownE = reserved "unknown" >> EUnknown <$> annotBrackets functionType
+
+failedE :: SaltParser Exp
+failedE = reserved "unknown" >> EFailed <$> annotBrackets functionType
+
 conE :: SaltParser Exp
 conE = ECon
        <$> conIdent
        <*> option [] (annotBrackets $ commaSep functionType)
-       <*> option [] (parens $ commaSep expression)
-
-pairE :: SaltParser Exp
-pairE = symbol "(" >> EPair <$> expression <* comma <*> expression <* symbol ")"
 
 litE :: SaltParser Exp
 litE = ELit . LInt <$> highlight H.Number natural
@@ -195,15 +190,14 @@ listE = do
   list <- brackets $ commaSep expression
   ty   <- annotBrackets functionType
   let
-    consP x xs = ECon "Cons" [ty] [x, xs]
-    nilP = ECon "Nil" [ty] []
+    consP x = EApp (EApp (ECon "Cons" [ty]) x)
+    nilP = ECon "Nil" [ty]
   return $ foldr consP nilP list
 
 -- * Pattern Parsing
 
 patternP :: SaltParser Pat
 patternP = choice
-  [ PCon <$> conIdent <*> option [] (parens $ commaSep varIdent)
-  , PCon "Pair" <$> parens ((\x y -> [x,y]) <$> varIdent <* comma <*> varIdent)
+  [ PCon <$> conIdent <*> many varIdent
   , PVar <$> varIdent
   ]

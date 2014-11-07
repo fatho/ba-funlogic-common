@@ -9,7 +9,7 @@ module Language.SaLT.AST
   , PrimOp(..)
   , Alt(..)
   , Pat(..)
-  , modName, modADTs, modBinds, modConstr
+  , modName, modADTs, modBinds
   , bindingName, bindingExpr, bindingType, bindingSrc
   ) where
 
@@ -22,7 +22,6 @@ data Module = Module
   { _modName   :: Name
   , _modBinds  :: M.Map Name Binding
   , _modADTs   :: M.Map Name ADT
-  , _modConstr :: M.Map Name TyDecl
   } deriving (Show)
 
 data Binding = Binding
@@ -44,12 +43,11 @@ data Exp
   | EApp Exp Exp
   | ELit Lit
   | EPrim PrimOp [Exp]
-  | ECon Name [Type] [Exp]
-  | EPair Exp Exp
+  | ECon Name [Type]
   | ESet Exp
   | ECase Exp [Alt]
-  | EFail Type
-  | EAny Type
+  | EFailed Type
+  | EUnknown Type
   deriving (Show)
 
 data Lit

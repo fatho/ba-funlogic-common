@@ -3,14 +3,10 @@ module FunLogic.Core.Parser where
 
 import           Control.Applicative
 import           Control.Arrow
-import           Control.Lens hiding (noneOf)
 import           Control.Monad
-import           Control.Monad.State
 import qualified Data.HashSet as HS
-import           Safe
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
-import           Text.Trifecta.Combinators
 import           Text.Trifecta.Delta
 import           Text.Trifecta.Indentation
 
@@ -30,7 +26,7 @@ adtParser = localIndentation Gt $ do
       <*  symbolic '='
       <*> body
   where
-    body    = conDecl `sepBy1` (symbol "|")
+    body    = conDecl `sepBy1` symbol "|"
     conDecl = ConDecl <$> conIdent <*> many simpleType
 
 -- * Indentifiers

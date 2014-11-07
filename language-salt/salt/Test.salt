@@ -17,25 +17,28 @@ not2 = \x :: Bool -> case case x of { True -> False
 
 tMap :: forall a b.(a -> b) -> (a,a) -> (b,b)
 tMap = \f :: (a->b) ->
-       \x :: (a,a)  -> case x of (a,b) -> (f a, f b)
+       \x :: Pair a a -> case x of Pair a b -> Pair<:b,b:> (f a) (f b)
 
 sMap :: forall a b.(a -> b) -> Set a -> Set b
 sMap = \f :: (a -> b) ->
-       \xs :: {a} -> xs >>= \x :: a -> {f x}
+       \xs :: Set a -> xs >>= \x :: a -> {f x}
 
 filter :: forall a.(a -> Bool) -> [a] -> [a]
 filter = \f :: (a -> Bool) ->
          \x :: [a] -> case x of
-           Nil -> Nil
-           Cons(y,ys) -> case f y of
-             True -> Cons(y, filter<:a:> f ys)
+           Nil -> Nil<:a:>
+           Cons y ys -> case f y of
+             True -> Cons<:a:> y (filter<:a:> f ys)
              False -> filter<:a:> f ys
 
-foo :: (Int, Int)
-foo = tMap<:Int,Int:> (\x :: Int -> x + 1) (1,3)
+foo :: Pair Nat Nat
+foo = tMap<:Nat,Nat:> (\x :: Nat -> x + 1) (Pair<:Nat,Nat:> 1 3)
 
-bar :: [Int]
-bar = filter (\x :: Int -> not (x == 1)) [1,4,1,1,2,1,1]<:Int:>
+bar :: [Nat]
+bar = filter<:Nat:> (\x :: Nat -> not (x == 1)) [1,4,1,1,2,1,1]<:Nat:>
+
+pairWithAny :: forall a. Data a => b -> Pair a b
+pairWithAny = \y :: b -> Pair<:a,b:> unknown<:a:> y
 
 {- Just a boring comment -}
 
