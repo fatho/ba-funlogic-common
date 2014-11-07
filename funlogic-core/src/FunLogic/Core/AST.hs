@@ -51,12 +51,29 @@ data Type
 -- plated lenses
 instance Plated Type
 
--- Useful Type Pattern Synonyms
+-- * Useful Type Pattern Synonyms
 pattern TFun x y = TCon "->" [x, y]
 pattern TNat     = TCon "Nat" []
 pattern TTup x y = TCon "Pair" [x, y]
 
--- * Definitions
+-- * Predefined ADTs
+
+adtDefBool :: ADT
+adtDefBool = ADT "Bool" []
+  [ ConDecl "False" []
+  , ConDecl "True" []
+  ] srcBuiltIn
+adtDefList :: ADT
+adtDefList = ADT "List" ["a"]
+  [ ConDecl "Nil" []
+  , ConDecl "Cons" [TVar "a", TCon "List" [TVar "a"]]
+  ] srcBuiltIn
+adtDefPair :: ADT
+adtDefPair = ADT "Pair" ["a", "b"]
+  [ ConDecl "Pair" [TVar "a", TVar "b"]
+  ] srcBuiltIn
+
+-- * Useful Functions
 
 srcBuiltIn :: SrcRef
 srcBuiltIn = SrcRef "<builtin>" (0,0) (0,0)
@@ -66,6 +83,13 @@ adtConstructorTypes ADT{..} = M.fromList $ map go _adtConstr where
   go (ConDecl name args) =
     let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
     in (name, TyDecl _adtTyArgs [] conTy)
+
+allConstructors :: [ADT] -> M.Map Name TyDecl
+allConstructors adts = M.unions $ map adtConstructorTypes adts
+
+dissectFunTy :: Type -> ([Type], Type)
+dissectFunTy (TFun x y) = dissectFunTy y & _1 %~ (x:)
+dissectFunTy x          = ([], x)
 
 -- Lenses
 makeLenses ''ADT

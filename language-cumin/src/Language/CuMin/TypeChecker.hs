@@ -7,7 +7,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE PatternSynonyms            #-}
-module Language.SaLT.TypeChecker where
+module Language.CuMin.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
@@ -22,7 +22,7 @@ import qualified Data.Map             as M
 import           Data.Traversable
 import           Prelude              hiding (foldr, mapM, mapM_, any)
 
-import           Language.SaLT.AST
+import           Language.CuMin.AST
 import           FunLogic.Core.TypeChecker
 
 -- * Built-Int types
@@ -31,8 +31,7 @@ pattern TSet x = TCon "Set" [x]
 
 builtInTyCons :: M.Map Name Kind
 builtInTyCons = M.fromList
-  [ ("Set", KFun KStar KStar)
-  , ("Nat", KStar)
+  [ ("Nat", KStar)
   , ("->", KFun KStar (KFun KStar KStar))
   ]
 
@@ -61,9 +60,15 @@ checkModule saltMod = do
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC ()
 checkBinding bnd = do
-  bodyTy <- tcExp $ bnd^.bindingExpr
   let (TyDecl _ _ ty) = bnd^.bindingType
-  assertTypesEq bodyTy ty
+  (argTys, bodyTy) <- extractArgs (bnd^.bindingArgs) ty
+  realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ tcExp $ bnd^.bindingExpr
+  assertTypesEq realBodyTy bodyTy
+
+extractArgs :: [Name] -> Type -> TC ([(Name,Type)], Type)
+extractArgs [] ty             = return ([], ty)
+extractArgs (x:xs) (TFun a b) = over _1 ((x,a):) <$> extractArgs xs b
+extractArgs (_:_) _           = errorTC $ ErrGeneral "too many arguments for function"
 
 tcExp :: Exp -> TC Type
 tcExp (EVar vname) = view (localScope.at vname) >>= \case
@@ -78,10 +83,6 @@ tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
   Just decl -> instanciate tyArgs decl -- TODO: check context
 
-tcExp (ELam argName argTy body) = do
-  bodyTy <- local (localScope.at argName .~ Just argTy) (tcExp body)
-  return (TFun argTy bodyTy)
-
 tcExp (EApp callee arg) = do
   argTy    <- tcExp arg
   tcExp callee >>= \case
@@ -89,6 +90,13 @@ tcExp (EApp callee arg) = do
       assertTypesEq funArg argTy
       return funDest
     calleeTy -> errorTC $ ErrTypeMismatch calleeTy (TFun argTy (TVar "<result>"))
+
+tcExp (ELet var e body) = do
+  varTy <- tcExp e
+  local (localScope.at var .~ Just varTy) $ tcExp body
+
+tcExp (ELetFree var ty body) =
+  local (localScope.at var .~ Just ty) $ tcExp body
 
 tcExp (ELit (LInt _)) = return TNat
 
@@ -102,19 +110,11 @@ tcExp (EPrim PrimEq [x, y]) = do
   tcExp y >>= assertTypesEq TNat
   return (TCon "Bool" [])
 
-tcExp (EPrim PrimBind [x, y]) = do
-  TSet elTy                 <- tcExp x
-  TFun argTy (TSet resElTy) <- tcExp y
-  assertTypesEq elTy argTy
-  return (TSet resElTy)
-
 tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong use of primitive operation: " ++ show e
 
 tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
   Just decl -> instanciate tyArgs decl
-
-tcExp (ESet e) = TSet <$> tcExp e
 
 tcExp (ECase expr alts) = do
   expTy  <- tcExp expr
@@ -124,8 +124,6 @@ tcExp (ECase expr alts) = do
     Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
 tcExp (EFailed ty) = return ty
-
-tcExp (EUnknown ty) = return ty
 
 tcAlt :: Type -> Alt -> TC Type
 tcAlt pty (Alt pat body) = case pat of

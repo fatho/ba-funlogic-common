@@ -71,7 +71,6 @@ program =
       { _modName = name
       , _modBinds = M.empty
       , _modADTs = M.empty
-      , _modConstr = M.empty
       }
     collectDecl d = case d of
       DTop binding -> let topName = binding ^. bindingName
@@ -81,15 +80,8 @@ program =
 
       DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
         True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
-        False -> do
-          modADTs . at _adtName .= Just adt
-          forM_ _adtConstr $ \(ConDecl name args) ->
-            modConstr `uses` M.member name >>= \case
-              True  -> fail ("constructor " ++ name ++ " is declared more than once")
-              False -> do
-                -- construct type from arguments
-                let conTy = foldr TFun (TCon _adtName (map TVar _adtTyArgs)) args
-                modConstr . at name .= Just (TyDecl _adtTyArgs [] conTy)
+        False -> modADTs . at _adtName .= Just adt
+        -- TODO: verify that no constructor name is defined more than once
 
 -- * Declaration Parsing
 
@@ -136,7 +128,6 @@ verySimpleExpr = choice
   , litE
   , listE
   , letE
-  , try pairE
   , parens expression
   ]
 
@@ -158,7 +149,7 @@ appE :: CuMinParser Exp
 appE = chainl1 verySimpleExpr (pure EApp)
 
 funE :: CuMinParser Exp
-funE = EFun <$> varIdent <*> optionalAnnotBrackets (commaSep functionType)
+funE = EFun <$> varIdent <*> annotBrackets (commaSep functionType)
 
 varE :: CuMinParser Exp
 varE = EVar <$> varIdent
@@ -166,7 +157,7 @@ varE = EVar <$> varIdent
 conE :: CuMinParser Exp
 conE = ECon
        <$> conIdent
-       <*> optionalAnnotBrackets (commaSep functionType)
+       <*> option [] (annotBrackets $ commaSep functionType)
 
 litE :: CuMinParser Exp
 litE = ELit . LInt <$> highlight H.Number natural
@@ -185,19 +176,14 @@ caseE = do
 
 -- * Syntactic Sugar
 
--- | syntactic sugar: (a, b) -> Pair a b
-pairE :: CuMinParser Exp
-pairE = parens $ mkPair <$> expression <* comma <*> expression where
-  mkPair x y = EApp (EApp (ECon "Pair" Nothing) x) y
-
 -- | syntactic sugar: [a,b,...] --> Cons a (Cons b ...)
 listE :: CuMinParser Exp
 listE = do
   list <- brackets $ commaSep expression
-  ty   <- fmap (:[]) <$> optionalAnnotBrackets functionType
+  ty   <- annotBrackets functionType
   let
-    consP x xs = EApp (EApp (ECon "Cons" ty) x) xs
-    nilP = ECon "Nil" ty
+    consP x = EApp (EApp (ECon "Cons" [ty]) x)
+    nilP = ECon "Nil" [ty]
   return $ foldr consP nilP list
 
 -- * Pattern Parsing
