@@ -81,7 +81,7 @@ tcExp (EVar vname) = view (localScope.at vname) >>= \case
 
 tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
-  Just decl -> instanciate tyArgs decl -- TODO: check context
+  Just decl -> instantiate tyArgs decl -- TODO: check context
 
 tcExp (EApp callee arg) = do
   argTy    <- tcExp arg
@@ -114,7 +114,7 @@ tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong use of primitive operation: 
 
 tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
-  Just decl -> instanciate tyArgs decl
+  Just decl -> instantiate tyArgs decl
 
 tcExp (ECase expr alts) = do
   expTy  <- tcExp expr
@@ -133,7 +133,7 @@ tcAlt pty (Alt pat body) = case pat of
     TCon _ tyArgs -> use (topScope.at c) >>= \case
       Nothing   -> errorTC $ ErrConNotInScope c
       Just decl -> do
-        conTy <- instanciate tyArgs decl
+        conTy <- instantiate tyArgs decl
         let (argTys, retTy) = dissectFunTy conTy
         when (length argTys /= length vs) (errorTC $ ErrGeneral "wrong number of arguments in pattern")
         when (retTy /= pty) (errorTC $ ErrTypeMismatch retTy pty)
