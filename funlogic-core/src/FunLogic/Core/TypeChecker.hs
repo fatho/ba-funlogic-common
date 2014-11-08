@@ -5,21 +5,26 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 module FunLogic.Core.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad        hiding (mapM, mapM_)
-import           Control.Monad.Error  hiding (mapM, mapM_)
-import           Control.Monad.Reader hiding (mapM, mapM_)
-import           Control.Monad.RWS    hiding (mapM, mapM_)
-import           Control.Monad.State  hiding (mapM, mapM_)
+import           Control.Monad                hiding (mapM, mapM_)
+import           Control.Monad.Error          hiding (mapM, mapM_)
+import           Control.Monad.Reader         hiding (mapM, mapM_)
+import           Control.Monad.RWS            hiding (mapM, mapM_)
+import           Control.Monad.State          hiding (mapM, mapM_)
+import           Data.Default.Class
 import           Data.Foldable
-import qualified Data.Map             as M
+import qualified Data.Map                     as M
+import           Data.Maybe
 import           Data.Traversable
-import           Prelude              hiding (foldr, mapM, mapM_, any, concat)
+import           Prelude                      hiding (any, concat, foldr, mapM,
+                                               mapM_)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           FunLogic.Core.AST
 
@@ -27,7 +32,7 @@ type VarId = Int
 
 -- | Errors reported by type checker
 data TCErr
-  = TCErr ErrMsg
+  = TCErr ErrMsg ErrCtx
   deriving (Show)
 
 data ErrMsg
@@ -41,6 +46,11 @@ data ErrMsg
   | ErrTypeMismatch Type Type
   deriving (Show)
 
+data ErrCtx
+  = ErrCtx
+  { _errSrc :: Maybe SrcRef
+  } deriving (Show)
+
 data Kind
   = KStar
   | KFun Kind Kind
@@ -48,20 +58,56 @@ data Kind
 
 instance Error TCErr where
   noMsg = strMsg "unknown error in type checker"
-  strMsg msg = TCErr (ErrGeneral msg)
+  strMsg msg = TCErr (ErrGeneral msg) (ErrCtx Nothing)
+
+makeLenses ''ErrCtx
+
+prettyErr :: TCErr -> Doc
+prettyErr (TCErr msg ctx) = red (text "Error!") <+> fromMaybe mempty (text . show <$> ctx^.errSrc)
+  PP.<$> indent 2 (prettyMsg msg)
+
+prettyMsg :: ErrMsg -> Doc
+prettyMsg err = case err of
+    ErrGeneral str -> text str
+    ErrVarNotInScope var -> notInScope "variable" var
+    ErrTyConNotInScope con -> notInScope "type constructor" con
+    ErrConNotInScope con -> notInScope "data constructor" con
+    ErrFunNotInScope fun -> notInScope "function" fun
+    ErrKindMismatch ty k1 k2 -> text "Kind mismatch for" <+> text (show ty) PP.<$> indent 2
+      (      dullyellow (text "Expected:") <+> text (show k1)
+      PP.<$> dullyellow (text "Actual:  ") <+> text (show k2))
+    ErrFreeVarInDecl ty v ->
+          text "The type " <+> dullyellow (text $ show ty)
+      <+> text "contains a free type variable" <+> dullyellow (text v)
+    ErrTypeMismatch expected actual ->
+             dullyellow (text "Expected type:") <+> text (show expected)
+      PP.<$> dullyellow (text "Actual type:  ") <+> text (show actual)
+  where
+    notInScope x y = text x <+> dullyellow (text y) <+> text "not in scope!"
+
 
 -- | State of the type checker.
 data TCState
   = TCState
-    { _topScope   :: M.Map Name TyDecl -- ^ available top level function definitions
-    , _typeScope  :: M.Map Name Kind   -- ^ type constructors in scope
+    { _topScope  :: M.Map Name TyDecl -- ^ available top level function definitions
+    , _typeScope :: M.Map Name Kind   -- ^ type constructors in scope
     }
 
 -- | Environment used during type checking
 data TCEnv
   = TCEnv
     { _localScope :: M.Map Name Type   -- ^ identifiers and their corresponding types currently in scope
+    , _errContext :: ErrCtx
     }
+
+instance Default ErrCtx where
+  def = ErrCtx Nothing
+
+instance Default TCState where
+  def = TCState M.empty M.empty
+
+instance Default TCEnv where
+  def = TCEnv M.empty def
 
 -- | Type checker monad.
 newtype TC a = TC { unwrapTC :: ErrorT TCErr (RWS TCEnv () TCState) a }
@@ -76,8 +122,8 @@ makeLenses ''TCState
 evalTC :: TC a -> TCState -> TCEnv -> Either TCErr a
 evalTC action istate env = fst $ evalRWS (runErrorT (unwrapTC action)) env istate
 
-errorTC :: MonadError TCErr m => ErrMsg -> m a
-errorTC msg = throwError (TCErr msg)
+errorTC :: ErrMsg -> TC a
+errorTC msg = view errContext >>= throwError . TCErr msg
 
 assertTypesEq :: Type -> Type -> TC ()
 assertTypesEq ty1 ty2 = when (ty1 /= ty2) (errorTC $ ErrTypeMismatch ty1 ty2)
@@ -111,8 +157,9 @@ instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
 
 -- | Typechecks an ADT
 checkADT :: ADT -> TC ()
-checkADT = mapMOf_ (adtConstr.traverse) checkConstr where
-  checkConstr (ConDecl _ args) = mapM_ checkKind args
+checkADT adt = local (errContext.errSrc .~ Just (adt^.adtSrcRef))
+             $ mapMOf_ (adtConstr.traverse) checkConstr adt
+  where checkConstr (ConDecl _ args) = mapM_ checkKind args
 
 -- | Verifies that a type is of the right kind
 checkKind :: Type -> TC Kind

@@ -1,4 +1,5 @@
-{-# LANGUAGE PatternSynonyms, TemplateHaskell #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.SaLT.AST
   ( Module(..)
   , Binding(..)
@@ -13,15 +14,15 @@ module Language.SaLT.AST
   , bindingName, bindingExpr, bindingType, bindingSrc
   ) where
 
-import Control.Lens
-import qualified Data.Map as M
+import           Control.Lens
+import qualified Data.Map          as M
 
-import FunLogic.Core.AST
+import           FunLogic.Core.AST
 
 data Module = Module
-  { _modName   :: Name
-  , _modBinds  :: M.Map Name Binding
-  , _modADTs   :: M.Map Name ADT
+  { _modName  :: Name
+  , _modBinds :: M.Map Name Binding
+  , _modADTs  :: M.Map Name ADT
   } deriving (Show)
 
 data Binding = Binding

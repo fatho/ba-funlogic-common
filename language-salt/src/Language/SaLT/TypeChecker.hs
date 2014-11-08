@@ -1,29 +1,23 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE RankNTypes                 #-}
 module Language.SaLT.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad        hiding (mapM, mapM_)
-import           Control.Monad.Error  hiding (mapM, mapM_)
-import           Control.Monad.Reader hiding (mapM, mapM_)
-import           Control.Monad.RWS    hiding (mapM, mapM_)
-import           Control.Monad.State  hiding (mapM, mapM_)
+import           Control.Monad             hiding (mapM, mapM_)
+import           Control.Monad.Reader      hiding (mapM, mapM_)
 import           Data.Foldable
-import qualified Data.HashSet         as HS
-import qualified Data.Map             as M
+import qualified Data.Map                  as M
 import           Data.Traversable
-import           Prelude              hiding (foldr, mapM, mapM_, any)
+import           Prelude                   hiding (any, foldr, mapM, mapM_)
 
-import           Language.SaLT.AST
 import           FunLogic.Core.TypeChecker
+import           Language.SaLT.AST
 
 -- * Built-Int types
 
@@ -45,7 +39,7 @@ includeBuiltIns :: TC ()
 includeBuiltIns = do
   typeScope %= M.union builtInTyCons
   typeScope %= M.union (adtKind <$> builtInADTs)
-  topScope  %= M.union (allConstructors (M.elems builtInADTs))
+  topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems builtInADTs)
 
 -- | Typechecks a module.
 checkModule :: Module -> TC ()
@@ -55,14 +49,15 @@ checkModule saltMod = do
   mapM_ checkADT (saltMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)
-  topScope %= M.union (allConstructors $ M.elems $ saltMod^.modADTs)
+  topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)
   mapM_ checkBinding (saltMod^.modBinds)
 
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC ()
-checkBinding bnd = do
+checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
   bodyTy <- tcExp $ bnd^.bindingExpr
   let (TyDecl _ _ ty) = bnd^.bindingType
+  void $ checkKind ty
   assertTypesEq bodyTy ty
 
 tcExp :: Exp -> TC Type
@@ -76,9 +71,12 @@ tcExp (EVar vname) = view (localScope.at vname) >>= \case
 
 tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
-  Just decl -> instantiate tyArgs decl -- TODO: check context
+  Just decl -> do
+    mapM_ checkKind tyArgs
+    instantiate tyArgs decl -- TODO: check context
 
 tcExp (ELam argName argTy body) = do
+  void $ checkKind argTy
   bodyTy <- local (localScope.at argName .~ Just argTy) (tcExp body)
   return (TFun argTy bodyTy)
 
@@ -112,7 +110,9 @@ tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong use of primitive operation: 
 
 tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
-  Just decl -> instantiate tyArgs decl
+  Just decl ->  do
+    mapM_ checkKind tyArgs
+    instantiate tyArgs decl
 
 tcExp (ESet e) = TSet <$> tcExp e
 
@@ -123,9 +123,9 @@ tcExp (ECase expr alts) = do
     Nothing -> return aty
     Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
-tcExp (EFailed ty) = return ty
+tcExp (EFailed ty) = checkKind ty >> return ty
 
-tcExp (EUnknown ty) = return ty
+tcExp (EUnknown ty) = checkKind ty >> return ty
 
 tcAlt :: Type -> Alt -> TC Type
 tcAlt pty (Alt pat body) = case pat of

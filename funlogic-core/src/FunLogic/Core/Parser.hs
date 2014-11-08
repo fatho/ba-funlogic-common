@@ -4,7 +4,7 @@ module FunLogic.Core.Parser where
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad
-import qualified Data.HashSet as HS
+import qualified Data.HashSet                as HS
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
 import           Text.Trifecta.Delta

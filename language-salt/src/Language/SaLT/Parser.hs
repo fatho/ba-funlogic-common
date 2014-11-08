@@ -12,7 +12,6 @@ import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.Map                    as M
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -57,31 +56,14 @@ parseSaltTest p xs = do
   liftIO $ putStrLn "-----------------------------------"
   parseTest (runSaltParser "<interactive>" p) xs
 
-
-parseSaltFile :: (MonadIO m) => FilePath -> m (Maybe Module)
+parseSaltFile :: (MonadIO m) => FilePath -> m (Maybe [Decl])
 parseSaltFile file = parseFromFile (runSaltParser file program) file
 
-program :: SaltParser Module
-program =
-  do
-    decls <- whiteSpace *> many (absoluteIndentation decl) <* eof
-    execStateT (mapM_ collectDecl decls) (emptyModule "Main")
-  where
-    emptyModule name = Module
-      { _modName = name
-      , _modBinds = M.empty
-      , _modADTs = M.empty
-      }
-    collectDecl d = case d of
-      DTop binding -> let topName = binding ^. bindingName
-        in modBinds `uses` M.member topName >>= \case
-          True  -> fail ("top-level " ++ topName ++ "is declared more than once")
-          False -> modBinds . at topName .= Just binding
+parseSaltFileEx :: (MonadIO m) => FilePath -> m (Result [Decl])
+parseSaltFileEx file = parseFromFileEx (runSaltParser file program) file
 
-      DData adt@ADT {..} -> modADTs `uses` M.member _adtName >>= \case
-        True  -> fail ("ADT " ++ _adtName ++ " is declared more than once")
-        False -> modADTs . at _adtName .= Just adt
-        -- TODO: verify that no constructor name is defined more than once
+program :: SaltParser [Decl]
+program = whiteSpace *> many (absoluteIndentation decl) <* eof
 
 -- * Declaration Parsing
 

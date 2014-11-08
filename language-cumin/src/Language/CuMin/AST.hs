@@ -20,9 +20,9 @@ import qualified Data.Map          as M
 import           FunLogic.Core.AST
 
 data Module = Module
-  { _modName   :: Name
-  , _modBinds  :: M.Map Name Binding
-  , _modADTs   :: M.Map Name ADT
+  { _modName  :: Name
+  , _modBinds :: M.Map Name Binding
+  , _modADTs  :: M.Map Name ADT
   } deriving (Show)
 
 data Binding = Binding
