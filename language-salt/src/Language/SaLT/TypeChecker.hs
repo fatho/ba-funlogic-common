@@ -73,7 +73,7 @@ tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
   Just decl -> do
     mapM_ checkKind tyArgs
-    instanciate tyArgs decl -- TODO: check context
+    instantiate tyArgs decl -- TODO: check context
 
 tcExp (ELam argName argTy body) = do
   void $ checkKind argTy
@@ -112,7 +112,7 @@ tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
   Just decl ->  do
     mapM_ checkKind tyArgs
-    instanciate tyArgs decl
+    instantiate tyArgs decl
 
 tcExp (ESet e) = TSet <$> tcExp e
 
@@ -135,7 +135,7 @@ tcAlt pty (Alt pat body) = case pat of
     TCon _ tyArgs -> use (topScope.at c) >>= \case
       Nothing   -> errorTC $ ErrConNotInScope c
       Just decl -> do
-        conTy <- instanciate tyArgs decl
+        conTy <- instantiate tyArgs decl
         let (argTys, retTy) = dissectFunTy conTy
         when (length argTys /= length vs) (errorTC $ ErrGeneral "wrong number of arguments in pattern")
         when (retTy /= pty) (errorTC $ ErrTypeMismatch retTy pty)

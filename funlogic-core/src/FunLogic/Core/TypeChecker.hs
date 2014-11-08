@@ -140,11 +140,11 @@ readOnly action = get >>= lift . runReaderT action
 adtKind :: ADT -> Kind
 adtKind adt = foldr KFun KStar (KStar <$ adt ^. adtTyArgs)
 
--- | Instanciates
-instanciate :: [Type] -> TyDecl -> TC Type
-instanciate tyArgs decl@(TyDecl tyVars ctx ty) = do
-  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ "Wrong number of arguments for type instanciation of: " ++ show decl)
-  -- TODO: check context when instanciating type declaration
+-- | Instantiates type variables in a type declaration
+instantiate :: [Type] -> TyDecl -> TC Type
+instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
+  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ "Wrong number of arguments for type instantiation of: " ++ show decl)
+  -- TODO: check context when instantiating type declaration
   let
     subst = M.fromList $ zip tyVars tyArgs
     replaceVar (TVar v) = case M.lookup v subst of

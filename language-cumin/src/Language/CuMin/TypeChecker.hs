@@ -22,6 +22,7 @@ import           Prelude                   hiding (any, foldr, mapM, mapM_)
 
 import           FunLogic.Core.TypeChecker
 import           Language.CuMin.AST
+import           FunLogic.Core.TypeChecker
 
 -- * Built-Int types
 
@@ -82,7 +83,7 @@ tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
   Just decl -> do
      mapM_ checkKind tyArgs
-     instanciate tyArgs decl -- TODO: check context
+     instantiate tyArgs decl -- TODO: check context
 
 tcExp (EApp callee arg) = do
   argTy    <- tcExp arg
@@ -96,8 +97,7 @@ tcExp (ELet var e body) = do
   varTy <- tcExp e
   local (localScope.at var .~ Just varTy) $ tcExp body
 
-tcExp (ELetFree var ty body) = do
-  void $ checkKind ty
+tcExp (ELetFree var ty body) =
   local (localScope.at var .~ Just ty) $ tcExp body
 
 tcExp (ELit (LInt _)) = return TNat
@@ -112,13 +112,13 @@ tcExp (EPrim PrimEq [x, y]) = do
   tcExp y >>= assertTypesEq TNat
   return (TCon "Bool" [])
 
-tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong usage of primitive operation: " ++ show e
+tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong use of primitive operation: " ++ show e
 
 tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
   Just decl -> do
      mapM_ checkKind tyArgs
-     instanciate tyArgs decl
+     instantiate tyArgs decl
 
 tcExp (ECase expr alts) = do
   expTy  <- tcExp expr
@@ -127,7 +127,7 @@ tcExp (ECase expr alts) = do
     Nothing -> return aty
     Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
-tcExp (EFailed ty) = checkKind ty >> return ty
+tcExp (EFailed ty) = return ty
 
 tcAlt :: Type -> Alt -> TC Type
 tcAlt pty (Alt pat body) = case pat of
@@ -137,7 +137,7 @@ tcAlt pty (Alt pat body) = case pat of
     TCon _ tyArgs -> use (topScope.at c) >>= \case
       Nothing   -> errorTC $ ErrConNotInScope c
       Just decl -> do
-        conTy <- instanciate tyArgs decl
+        conTy <- instantiate tyArgs decl
         let (argTys, retTy) = dissectFunTy conTy
         when (length argTys /= length vs) (errorTC $ ErrGeneral "wrong number of arguments in pattern")
         when (retTy /= pty) (errorTC $ ErrTypeMismatch retTy pty)
