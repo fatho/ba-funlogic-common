@@ -2,16 +2,20 @@
 module FunLogic.Core.Pretty where
 
 import           Control.Lens
-import           Text.PrettyPrint.Leijen hiding ((<$>))
+import           System.IO
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import           FunLogic.Core.AST
 
 defaultIndent :: Int
 defaultIndent = 2
 
+keyword :: String -> Doc
+keyword = bold . blue . text
+
 prettyADT :: ADT -> Doc
 prettyADT adt = hang defaultIndent $
-  text "data" <+> text (adt^.adtName) <+> tyArgs <//> encloseSep (text "= ") empty (text "| ") constrs
+  keyword "data" <+> text (adt^.adtName) <+> tyArgs <//> encloseSep (text "= ") empty (text "| ") constrs
     where
     tyArgs = foldr (<+>) empty . map text $ adt^.adtTyArgs
     constrs = map prettyConDecl $ adt^.adtConstr
@@ -29,7 +33,7 @@ prettyType ty = case ty of
 
 prettyTyDecl :: TyDecl -> Doc
 prettyTyDecl (TyDecl vs cs ty) =
-  text "forall" <+> fillSep (map text vs) <> char '.'
+  keyword "forall" <+> fillSep (map text vs) <> char '.'
   <> constraints
   </> prettyType ty
   where
@@ -39,5 +43,6 @@ prettyTyDecl (TyDecl vs cs ty) =
 prettyTyConstraint :: TyConstraint -> Doc
 prettyTyConstraint (TyConstraint n v) = text n <+> text v
 
-testPretty :: Int -> Doc -> IO ()
-testPretty wid = putStr . flip displayS "" . renderPretty 1.0 wid
+-- | Renders the Doc with the given width and displays it.
+displayPretty :: Int -> Doc -> IO ()
+displayPretty wd = displayIO stdout . renderPretty 1.0 wd
