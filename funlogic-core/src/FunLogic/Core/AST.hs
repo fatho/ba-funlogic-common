@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE PatternSynonyms    #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TemplateHaskell    #-}
@@ -79,6 +80,29 @@ adtDefPair :: ADT
 adtDefPair = ADT "Pair" ["a", "b"]
   [ ConDecl "Pair" [TVar "a", TVar "b"]
   ] srcBuiltIn
+
+-- * Precedence Handling (when to use parentheses in pretty-printer)
+
+-- | Precedence is represented as an integer. Greater numbers mean higher precedence.
+type Prec = Int
+
+class HasPrecedence a where
+  prec :: a -> Prec
+
+instance HasPrecedence Type where
+  prec = \case
+    TFun _ _ -> 1
+    -- "Normal" typec constructors have higher precedence than function types
+    TCon _ (_:_) -> tyConPrec
+    -- these two have highest precedence because they never need parentheses:
+    TCon _ [] -> maxTypePrec
+    TVar _ -> maxTypePrec
+
+tyConPrec :: Prec
+tyConPrec = 2
+
+maxTypePrec :: Prec
+maxTypePrec = 3
 
 -- * Useful Functions
 
