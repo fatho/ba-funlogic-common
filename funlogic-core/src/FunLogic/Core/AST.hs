@@ -63,6 +63,7 @@ makeLenses ''ADT
 pattern TFun x y = TCon "->" [x, y]
 pattern TNat     = TCon "Nat" []
 pattern TTup x y = TCon "Pair" [x, y]
+pattern TList x  = TCon "List" [x]
 
 -- * Predefined ADTs
 

@@ -38,6 +38,7 @@ prettyType ty = case ty of
   -- On the right hand side they're not. Thus the difference in required precedence:
   TFun x y   -> withPrec (prc + 1) prettyType x </> text "->" <+> withPrec prc prettyType y
   TTup x y   -> tupled [prettyType x, prettyType y]
+  TList x    -> char '[' <> prettyType x <> char ']'
   TCon c []  -> text c
   TCon c tys -> text c <+> fillSep (map (withPrec maxTypePrec prettyType) tys)
   where
