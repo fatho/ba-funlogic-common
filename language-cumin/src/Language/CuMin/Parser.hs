@@ -106,7 +106,7 @@ topLevelDecl =
 
 opTable :: [[Operator CuMinParser Exp]]
 opTable = [ [ Infix (prim2 PrimAdd  <$ symbol "+")   AssocLeft ]
-          , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocLeft ]
+          , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocNone ]
           ]
   where
     prim2 p x y = EPrim p [x, y]

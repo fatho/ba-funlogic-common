@@ -88,7 +88,7 @@ topLevelDecl =
 
 opTable :: [[Operator SaltParser Exp]]
 opTable = [ [ Infix (prim2 PrimAdd  <$ symbol "+")   AssocLeft ]
-          , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocLeft ]
+          , [ Infix (prim2 PrimEq   <$ symbol "==")  AssocNone ]
           , [ Infix (prim2 PrimBind <$ symbol ">>=") AssocLeft ]
           ]
   where
