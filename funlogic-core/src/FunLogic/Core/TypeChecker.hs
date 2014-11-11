@@ -27,6 +27,7 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           FunLogic.Core.AST
+import           FunLogic.Core.Pretty
 
 type VarId = Int
 
@@ -73,15 +74,15 @@ prettyMsg err = case err of
     ErrTyConNotInScope con -> notInScope "type constructor" con
     ErrConNotInScope con -> notInScope "data constructor" con
     ErrFunNotInScope fun -> notInScope "function" fun
-    ErrKindMismatch ty k1 k2 -> text "Kind mismatch for" <+> text (show ty) PP.<$> indent 2
+    ErrKindMismatch ty k1 k2 -> text "Kind mismatch for" <+> prettyType ty PP.<$> indent 2
       (      dullyellow (text "Expected:") <+> text (show k1)
       PP.<$> dullyellow (text "Actual:  ") <+> text (show k2))
-    ErrFreeVarInDecl ty v ->
-          text "The type " <+> dullyellow (text $ show ty)
+    ErrFreeVarInDecl tydec v ->
+          text "The type " <+> dullyellow (prettyTyDecl tydec)
       <+> text "contains a free type variable" <+> dullyellow (text v)
     ErrTypeMismatch expected actual ->
-             dullyellow (text "Expected type:") <+> text (show expected)
-      PP.<$> dullyellow (text "Actual type:  ") <+> text (show actual)
+             dullyellow (text "Expected type:") <+> prettyType expected
+      PP.<$> dullyellow (text "Actual type:  ") <+> prettyType actual
   where
     notInScope x y = text x <+> dullyellow (text y) <+> text "not in scope!"
 
