@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE LambdaCase      #-}
 module Language.CuMin.AST
     ( Module
     , Binding(..)
@@ -64,6 +65,27 @@ data Pat
   = PCon Name [Name]
   | PVar Name
   deriving (Show)
+
+instance HasPrecedence Exp where
+  prec = \case
+    ELet _ _ _ -> 1
+    ELetFree _ _ _ -> 1
+    ECase _ _ -> 1
+
+    -- As specified, '+' binds most and '>>=' least tightly.
+    EPrim p _ -> case p of
+      PrimEq -> 3
+      PrimAdd -> 4
+
+    -- Application binds more tightly than primitives.
+    EApp _ _ -> 5
+
+    -- In the following cases, parentheses are never needed:
+    EVar _ -> 6
+    EFailed _ -> 6
+    ELit _ -> 6
+    EFun _ _ -> 6
+    ECon _ _ -> 6
 
 -- Lenses
 makeLensesFor [("_bindingArgs", "bindingArgs")] ''Binding

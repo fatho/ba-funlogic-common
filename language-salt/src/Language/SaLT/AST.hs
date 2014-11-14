@@ -69,9 +69,6 @@ instance HasPrecedence Exp where
     ECon _ _ -> 6
     ESet _ -> 6
 
-maxExpPrec :: Prec
-maxExpPrec = 6
-
 data Lit
   = LInt Integer
   deriving (Show)

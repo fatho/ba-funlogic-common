@@ -18,6 +18,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:   Language.CuMin.AST
                      Language.CuMin.Parser
+                     Language.CuMin.Pretty
                      Language.CuMin.TypeChecker
   -- other-modules:       
   -- other-extensions:    

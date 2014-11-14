@@ -38,6 +38,17 @@ maybeInc2 = let c :: Bool free in case c of
   True  -> inc
   False -> id<:Nat:>
 
+doubleInc :: Nat -> Nat
+doubleInc y = let x = maybeInc y in x + x
+
+dup :: forall a.Data a => Pair a a
+dup = let x :: a free in Pair<:a,a:> x x
+
+dup2 :: forall a.Data a => (a,a)
+dup2 = let x :: a free in
+       let y :: a free in
+       Pair<:a,a:> x y
+
 {- Just a boring comment -}
 
 {--}

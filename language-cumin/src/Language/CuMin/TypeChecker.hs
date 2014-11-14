@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TemplateHaskell       #-}
 module Language.CuMin.TypeChecker where
 
 import           Control.Applicative
@@ -20,10 +21,11 @@ import qualified Data.HashSet                 as HS
 import qualified Data.Map                     as M
 import           Data.Traversable
 import           Prelude                      hiding (any, foldr, mapM, mapM_)
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 import           FunLogic.Core.TypeChecker
 import           Language.CuMin.AST
+import           Language.CuMin.Pretty
 
 -- * Built-Int types
 
@@ -42,16 +44,18 @@ builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDef
 
 data CuMinErrCtx
   = CuMinErrCtx
-  { _errExp :: Maybe Exp
+  { _errExp :: [Exp]
   }
 
 instance Default CuMinErrCtx where
-  def = CuMinErrCtx Nothing
+  def = CuMinErrCtx []
 
 instance Pretty CuMinErrCtx where
-  pretty (CuMinErrCtx ectx) = case ectx of
-    Nothing -> mempty
-    Just e -> text "Expression:" <+> text (show e)
+  pretty (CuMinErrCtx ectx)
+    | null ectx = mempty
+    | otherwise = foldMap (\e -> highlight (text "in") <+> align (prettyExp e) <> line) ectx
+
+makeLenses ''CuMinErrCtx
 
 -- * Type Checking
 
@@ -79,7 +83,7 @@ checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
   withTyVars tvars $ do
     checkType ty
     (argTys, bodyTy) <- extractArgs (bnd^.bindingArgs) ty
-    realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ tcExp $ bnd^.bindingExpr
+    realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ checkExp $ bnd^.bindingExpr
     assertTypesEq realBodyTy bodyTy
 
 extractArgs :: [Name] -> Type -> TC CuMinErrCtx ([(Name,Type)], Type)
@@ -87,68 +91,69 @@ extractArgs [] ty             = return ([], ty)
 extractArgs (x:xs) (TFun a b) = over _1 ((x,a):) <$> extractArgs xs b
 extractArgs (_:_) _           = errorTC $ ErrGeneral $ text "too many arguments for function"
 
-tcExp :: Exp -> TC CuMinErrCtx Type
-tcExp (EVar vname) = view (localScope.at vname) >>= \case
-  Nothing -> use (topScope.at vname) >>= \case
-    Nothing -> errorTC (ErrVarNotInScope vname)
-    Just (TyDecl args _ ty)
-      | null args -> return ty
-      | otherwise -> errorTC (ErrVarNotInScope vname)
-  Just ty -> return ty
+checkExp :: Exp -> TC CuMinErrCtx Type
+checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
+  go (EVar vname) = view (localScope.at vname) >>= \case
+    Nothing -> use (topScope.at vname) >>= \case
+      Nothing -> errorTC (ErrVarNotInScope vname)
+      Just (TyDecl args _ ty)
+        | null args -> return ty
+        | otherwise -> errorTC (ErrVarNotInScope vname)
+    Just ty -> return ty
 
-tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
-  Nothing -> errorTC (ErrFunNotInScope fn)
-  Just decl -> do
-     mapM_ checkType tyArgs
-     instantiate tyArgs decl -- TODO: check context
+  go (EFun fn tyArgs) = use (topScope.at fn) >>= \case
+    Nothing -> errorTC (ErrFunNotInScope fn)
+    Just decl -> do
+       mapM_ checkType tyArgs
+       instantiate tyArgs decl -- TODO: check context
 
-tcExp (EApp callee arg) = do
-  argTy    <- tcExp arg
-  tcExp callee >>= \case
-    TFun funArg funDest -> do
-      assertTypesEq funArg argTy
-      return funDest
-    calleeTy -> errorTC $ ErrTypeMismatch calleeTy (TFun argTy (TVar "<result>"))
+  go (EApp callee arg) = do
+    argTy    <- checkExp arg
+    checkExp callee >>= \case
+      TFun funArg funDest -> do
+        assertTypesEq funArg argTy
+        return funDest
+      calleeTy -> errorTC $ ErrTypeMismatch calleeTy (TFun argTy (TVar "<result>"))
 
-tcExp (ELet var e body) = do
-  varTy <- tcExp e
-  local (localScope.at var .~ Just varTy) $ tcExp body
+  go (ELet var e body) = do
+    varTy <- checkExp e
+    local (localScope.at var .~ Just varTy) $ checkExp body
 
-tcExp (ELetFree var ty body) =
-  local (localScope.at var .~ Just ty) $ tcExp body
+  go (ELetFree var ty body) =
+    local (localScope.at var .~ Just ty) $ checkExp body
 
-tcExp (ELit (LInt _)) = return TNat
+  go (ELit (LInt _)) = return TNat
 
-tcExp (EPrim PrimAdd [x, y]) = do
-  tcExp x >>= assertTypesEq TNat
-  tcExp y >>= assertTypesEq TNat
-  return TNat
+  go (EPrim PrimAdd [x, y]) = do
+    checkExp x >>= assertTypesEq TNat
+    checkExp y >>= assertTypesEq TNat
+    return TNat
 
-tcExp (EPrim PrimEq [x, y]) = do
-  tcExp x >>= assertTypesEq TNat
-  tcExp y >>= assertTypesEq TNat
-  return (TCon "Bool" [])
+  go (EPrim PrimEq [x, y]) = do
+    checkExp x >>= assertTypesEq TNat
+    checkExp y >>= assertTypesEq TNat
+    return (TCon "Bool" [])
 
-tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ text $ "Wrong use of primitive operation: " ++ show e
+  go e@(EPrim _ _) = errorTC $ ErrGeneral $ text $ "Wrong use of primitive operation: " ++ show e
 
-tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
-  Nothing -> errorTC (ErrConNotInScope con)
-  Just decl -> do
-     mapM_ checkType tyArgs
-     instantiate tyArgs decl
+  go (ECon con tyArgs) = use (topScope.at con) >>= \case
+    Nothing -> errorTC (ErrConNotInScope con)
+    Just decl -> do
+       mapM_ checkType tyArgs
+       instantiate tyArgs decl
 
-tcExp (ECase expr alts) = do
-  expTy  <- tcExp expr
-  (aty:atys) <- mapM (tcAlt expTy) alts
-  case find (/=aty) atys of
-    Nothing -> return aty
-    Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
+  go (ECase expr alts) = do
+    expTy  <- checkExp expr
+    (aty:atys) <- mapM (tcAlt expTy) alts
+    case find (/=aty) atys of
+      Nothing -> return aty
+      Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
-tcExp (EFailed ty) = return ty
+  go (EFailed ty) = return ty
 
 tcAlt :: Type -> Alt -> TC CuMinErrCtx Type
 tcAlt pty (Alt pat body) = case pat of
-  PVar v -> local (localScope.at v .~ Just pty) $ tcExp body
+  PVar v -> local (localScope.at v .~ Just pty) $ checkExp body
   PCon c vs -> case pty of
     TVar _        -> errorTC $ ErrGeneral $ text "cannot pattern match on unknown type"
     TCon _ tyArgs -> use (topScope.at c) >>= \case
@@ -158,4 +163,4 @@ tcAlt pty (Alt pat body) = case pat of
         let (argTys, retTy) = dissectFunTy conTy
         when (length argTys /= length vs) (errorTC $ ErrGeneral $ text "wrong number of arguments in pattern")
         when (retTy /= pty) (errorTC $ ErrTypeMismatch retTy pty)
-        local (localScope %~ M.union (M.fromList $ zip vs argTys)) $ tcExp body
+        local (localScope %~ M.union (M.fromList $ zip vs argTys)) $ checkExp body

@@ -71,19 +71,25 @@ instance Default e => Error (TCErr e) where
 instance Default e => Default (ErrCtx e) where
   def = ErrCtx Nothing Nothing def
 
-instance Pretty e => Pretty (ErrCtx e) where
-  pretty (ErrCtx src ty user)
-    = text "Location:" <+> text (maybe "unknown" show src)
-    <> maybe mempty (\t -> line <> text "Type:" <+> prettyType t) ty
-    PP.<$> pretty user
-
 makeLenses ''ErrCtx
 
 -- * Pretty printing of error messages
 
+instance Pretty e => Pretty (ErrCtx e) where
+  pretty (ErrCtx src ty user)
+    = text "Location:" <+> highlight (text $ maybe "unknown" show src)
+    <> maybe mempty (\t -> line <> text "Type:" <+> highlight (prettyType t)) ty
+    PP.<$> pretty user
+
+errorDoc :: Doc -> Doc
+errorDoc = red
+
+highlight :: Doc -> Doc
+highlight = dullyellow
+
 prettyErr :: Pretty e => TCErr e -> Doc
-prettyErr (TCErr msg ctx) = red (text "Error!") PP.<$> indent 2 (prettyMsg msg)
-  PP.<$> (text "Context:" PP.<$> indent 2 (pretty ctx))
+prettyErr (TCErr msg ctx) = errorDoc (text "Error!") PP.<$> indent 2 (prettyMsg msg)
+  PP.<$> errorDoc (text "Context:") PP.<$> indent 2 (pretty ctx)
 
 prettyMsg :: ErrMsg -> Doc
 prettyMsg err = case err of
@@ -94,16 +100,16 @@ prettyMsg err = case err of
     ErrConNotInScope con -> notInScope "data constructor" con
     ErrFunNotInScope fun -> notInScope "function" fun
     ErrKindMismatch ty (Kind n1) (Kind n2) -> text "Kind mismatch for" <+> prettyType ty PP.<$> indent 2
-      (      dullyellow (text "Expected:") <+> int n1 <+> pluralize n1 "argument"
-      PP.<$> dullyellow (text "Given:   ") <+> int n2 <+> pluralize n2 "argument")
+      (      highlight (text "Expected:") <+> int n1 <+> pluralize n1 "argument"
+      PP.<$> highlight (text "Given:   ") <+> int n2 <+> pluralize n2 "argument")
     ErrFreeVarInDecl tydec v ->
-          text "The type " <+> dullyellow (prettyTyDecl tydec)
-      <+> text "contains a free type variable" <+> dullyellow (text v)
+          text "The type " <+> highlight (prettyTyDecl tydec)
+      <+> text "contains a free type variable" <+> highlight (text v)
     ErrTypeMismatch expected actual ->
-             dullyellow (text "Expected type:") <+> prettyType expected
-      PP.<$> dullyellow (text "Actual type:  ") <+> prettyType actual
+             highlight (text "Expected type:") <+> prettyType expected
+      PP.<$> highlight (text "Actual type:  ") <+> prettyType actual
   where
-    notInScope x y = text x <+> dullyellow (text y) <+> text "not in scope!"
+    notInScope x y = text x <+> highlight (text y) <+> text "not in scope!"
 
 pluralize :: (Num a, Ord a) => a -> String -> Doc
 pluralize 1 str = text str
@@ -171,7 +177,7 @@ adtKind adt = adt^.adtTyArgs.to length.to Kind
 -- | Instantiates type variables in a type declaration
 instantiate :: Default e => [Type] -> TyDecl -> TC e Type
 instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
-  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ text $ "Wrong number of arguments for type instantiation of: " ++ show decl)
+  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ hang 2 $ text "Wrong number of arguments for type instantiation of" </> highlight (prettyTyDecl decl))
   -- TODO: check context when instantiating type declaration
   let
     subst = M.fromList $ zip tyVars tyArgs
