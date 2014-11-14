@@ -37,7 +37,7 @@ foo = tMap<:Nat,Nat:> (\x :: Nat -> x + 1) (Pair<:Nat,Nat:> 1 3)
 bar :: [Nat]
 bar = filter<:Nat:> (\x :: Nat -> not (x == 1)) [1,4,1,1,2,1,1]<:Nat:>
 
-pairWithAny :: forall a. Data a => b -> Pair a b
+pairWithAny :: forall a b. Data a => b -> Pair a b
 pairWithAny = \y :: b -> Pair<:a,b:> unknown<:a:> y
 
 {- Just a boring comment -}

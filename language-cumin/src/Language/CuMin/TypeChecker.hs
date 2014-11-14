@@ -31,8 +31,8 @@ pattern TSet x = TCon "Set" [x]
 
 builtInTyCons :: M.Map Name Kind
 builtInTyCons = M.fromList
-  [ ("Nat", KStar)
-  , ("->", KFun KStar (KFun KStar KStar))
+  [ ("Nat", Kind 0)
+  , ("->", Kind 2)
   ]
 
 builtInADTs :: M.Map Name ADT
@@ -75,16 +75,17 @@ checkModule saltMod = do
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC CuMinErrCtx ()
 checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
-  let (TyDecl _ _ ty) = bnd^.bindingType
-  void $ checkKind ty
-  (argTys, bodyTy) <- extractArgs (bnd^.bindingArgs) ty
-  realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ tcExp $ bnd^.bindingExpr
-  assertTypesEq realBodyTy bodyTy
+  let (TyDecl tvars _ ty) = bnd^.bindingType
+  withTyVars tvars $ do
+    checkType ty
+    (argTys, bodyTy) <- extractArgs (bnd^.bindingArgs) ty
+    realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ tcExp $ bnd^.bindingExpr
+    assertTypesEq realBodyTy bodyTy
 
 extractArgs :: [Name] -> Type -> TC CuMinErrCtx ([(Name,Type)], Type)
 extractArgs [] ty             = return ([], ty)
 extractArgs (x:xs) (TFun a b) = over _1 ((x,a):) <$> extractArgs xs b
-extractArgs (_:_) _           = errorTC $ ErrGeneral "too many arguments for function"
+extractArgs (_:_) _           = errorTC $ ErrGeneral $ text "too many arguments for function"
 
 tcExp :: Exp -> TC CuMinErrCtx Type
 tcExp (EVar vname) = view (localScope.at vname) >>= \case
@@ -98,7 +99,7 @@ tcExp (EVar vname) = view (localScope.at vname) >>= \case
 tcExp (EFun fn tyArgs) = use (topScope.at fn) >>= \case
   Nothing -> errorTC (ErrFunNotInScope fn)
   Just decl -> do
-     mapM_ checkKind tyArgs
+     mapM_ checkType tyArgs
      instantiate tyArgs decl -- TODO: check context
 
 tcExp (EApp callee arg) = do
@@ -128,12 +129,12 @@ tcExp (EPrim PrimEq [x, y]) = do
   tcExp y >>= assertTypesEq TNat
   return (TCon "Bool" [])
 
-tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ "Wrong use of primitive operation: " ++ show e
+tcExp e@(EPrim _ _) = errorTC $ ErrGeneral $ text $ "Wrong use of primitive operation: " ++ show e
 
 tcExp (ECon con tyArgs) = use (topScope.at con) >>= \case
   Nothing -> errorTC (ErrConNotInScope con)
   Just decl -> do
-     mapM_ checkKind tyArgs
+     mapM_ checkType tyArgs
      instantiate tyArgs decl
 
 tcExp (ECase expr alts) = do
@@ -149,12 +150,12 @@ tcAlt :: Type -> Alt -> TC CuMinErrCtx Type
 tcAlt pty (Alt pat body) = case pat of
   PVar v -> local (localScope.at v .~ Just pty) $ tcExp body
   PCon c vs -> case pty of
-    TVar _        -> errorTC $ ErrGeneral "cannot pattern match on unknown type"
+    TVar _        -> errorTC $ ErrGeneral $ text "cannot pattern match on unknown type"
     TCon _ tyArgs -> use (topScope.at c) >>= \case
       Nothing   -> errorTC $ ErrConNotInScope c
       Just decl -> do
         conTy <- instantiate tyArgs decl
         let (argTys, retTy) = dissectFunTy conTy
-        when (length argTys /= length vs) (errorTC $ ErrGeneral "wrong number of arguments in pattern")
+        when (length argTys /= length vs) (errorTC $ ErrGeneral $ text "wrong number of arguments in pattern")
         when (retTy /= pty) (errorTC $ ErrTypeMismatch retTy pty)
         local (localScope %~ M.union (M.fromList $ zip vs argTys)) $ tcExp body

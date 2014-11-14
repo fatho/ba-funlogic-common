@@ -18,9 +18,9 @@ import           Control.Monad.RWS            hiding (mapM, mapM_)
 import           Control.Monad.State          hiding (mapM, mapM_)
 import           Data.Default.Class
 import           Data.Foldable
+import qualified Data.HashSet                 as HS
 import qualified Data.Map                     as M
 import           Data.Maybe
-import           Data.Traversable
 import           Prelude                      hiding (any, concat, foldr, mapM,
                                                mapM_)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -36,40 +36,50 @@ data TCErr e
   = TCErr ErrMsg (ErrCtx e)
   deriving (Show)
 
+-- | Context of an error message.
 data ErrCtx e
   = ErrCtx
-  { _errSrc :: Maybe SrcRef
-  , _userCtx :: e
+  { _errSrc  :: Maybe SrcRef  -- ^ position in the source file of the errorneous code part
+  , _errType :: Maybe Type    -- ^ type signature currently being checkd
+  , _userCtx :: e             -- ^ some other context information
   } deriving (Show)
 
+-- | Possible type checker errors
 data ErrMsg
-  = ErrGeneral String
+  = ErrGeneral Doc
   | ErrVarNotInScope Name
+  | ErrTyVarNotInScope TVName
   | ErrTyConNotInScope Name
   | ErrConNotInScope Name
   | ErrFunNotInScope Name
   | ErrKindMismatch Type Kind Kind
-  | ErrFreeVarInDecl TyDecl Name
+  | ErrFreeVarInDecl TyDecl TVName
   | ErrTypeMismatch Type Type
   deriving (Show)
 
+-- | Kind of a type constructor.
+-- Currently only represented by arity, since higher kinded types are not supported.
 data Kind
-  = KStar
-  | KFun Kind Kind
-  deriving (Show, Eq)
+  = Kind
+  { _kindArity :: Int
+  } deriving (Show, Eq)
 
 instance Default e => Error (TCErr e) where
   noMsg = strMsg "unknown error in type checker"
-  strMsg msg = TCErr (ErrGeneral msg) def
+  strMsg msg = TCErr (ErrGeneral $ text msg) def
 
 instance Default e => Default (ErrCtx e) where
-  def = ErrCtx Nothing def
+  def = ErrCtx Nothing Nothing def
 
 instance Pretty e => Pretty (ErrCtx e) where
-  pretty (ErrCtx src user) = text "Location:" <+> text (maybe "unknown" show src)
-                            PP.<$> pretty user
+  pretty (ErrCtx src ty user)
+    = text "Location:" <+> text (maybe "unknown" show src)
+    <> maybe mempty (\t -> line <> text "Type:" <+> prettyType t) ty
+    PP.<$> pretty user
 
 makeLenses ''ErrCtx
+
+-- * Pretty printing of error messages
 
 prettyErr :: Pretty e => TCErr e -> Doc
 prettyErr (TCErr msg ctx) = red (text "Error!") PP.<$> indent 2 (prettyMsg msg)
@@ -77,14 +87,15 @@ prettyErr (TCErr msg ctx) = red (text "Error!") PP.<$> indent 2 (prettyMsg msg)
 
 prettyMsg :: ErrMsg -> Doc
 prettyMsg err = case err of
-    ErrGeneral str -> text str
+    ErrGeneral doc -> doc
     ErrVarNotInScope var -> notInScope "variable" var
+    ErrTyVarNotInScope var -> notInScope "type variable" var
     ErrTyConNotInScope con -> notInScope "type constructor" con
     ErrConNotInScope con -> notInScope "data constructor" con
     ErrFunNotInScope fun -> notInScope "function" fun
-    ErrKindMismatch ty k1 k2 -> text "Kind mismatch for" <+> prettyType ty PP.<$> indent 2
-      (      dullyellow (text "Expected:") <+> text (show k1)
-      PP.<$> dullyellow (text "Actual:  ") <+> text (show k2))
+    ErrKindMismatch ty (Kind n1) (Kind n2) -> text "Kind mismatch for" <+> prettyType ty PP.<$> indent 2
+      (      dullyellow (text "Expected:") <+> int n1 <+> pluralize n1 "argument"
+      PP.<$> dullyellow (text "Given:   ") <+> int n2 <+> pluralize n2 "argument")
     ErrFreeVarInDecl tydec v ->
           text "The type " <+> dullyellow (prettyTyDecl tydec)
       <+> text "contains a free type variable" <+> dullyellow (text v)
@@ -94,6 +105,11 @@ prettyMsg err = case err of
   where
     notInScope x y = text x <+> dullyellow (text y) <+> text "not in scope!"
 
+pluralize :: (Num a, Ord a) => a -> String -> Doc
+pluralize 1 str = text str
+pluralize _ str = text $ str ++ "s"
+
+-- * Definition of type checker monad
 
 -- | State of the type checker.
 data TCState
@@ -106,6 +122,7 @@ data TCState
 data TCEnv e
   = TCEnv
     { _localScope :: M.Map Name Type   -- ^ identifiers and their corresponding types currently in scope
+    , _tyVarScope :: HS.HashSet Name   -- ^ type variables currently in scope
     , _errContext :: ErrCtx e
     }
 
@@ -113,8 +130,7 @@ instance Default TCState where
   def = TCState M.empty M.empty
 
 instance Default e => Default (TCEnv e) where
-  def = TCEnv M.empty def
-
+  def = TCEnv M.empty HS.empty def
 
 type MonadTCErr e = MonadError (TCErr e)
 type MonadTCReader e = MonadReader (TCEnv e)
@@ -145,14 +161,17 @@ modifyM lns f = use lns >>= f >>= assign lns
 readOnly :: (Monad m) => ReaderT s m a -> StateT s m a
 readOnly action = get >>= lift . runReaderT action
 
+withTyVars :: Default e => [TVName] -> TC e a -> TC e a
+withTyVars tvs = local (tyVarScope %~ HS.union (HS.fromList tvs))
+
 -- | Returns the kind of an ADT type constructor
 adtKind :: ADT -> Kind
-adtKind adt = foldr KFun KStar (KStar <$ adt ^. adtTyArgs)
+adtKind adt = adt^.adtTyArgs.to length.to Kind
 
 -- | Instantiates type variables in a type declaration
 instantiate :: Default e => [Type] -> TyDecl -> TC e Type
 instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
-  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ "Wrong number of arguments for type instantiation of: " ++ show decl)
+  when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ text $ "Wrong number of arguments for type instantiation of: " ++ show decl)
   -- TODO: check context when instantiating type declaration
   let
     subst = M.fromList $ zip tyVars tyArgs
@@ -167,17 +186,17 @@ instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
 -- | Typechecks an ADT
 checkADT :: Default e => ADT -> TC e ()
 checkADT adt = local (errContext.errSrc .~ Just (adt^.adtSrcRef))
-             $ mapMOf_ (adtConstr.traverse) checkConstr adt
-  where checkConstr (ConDecl _ args) = mapM_ checkKind args
+    $ withTyVars (adt^.adtTyArgs)
+    $ mapMOf_ (adtConstr.traverse) checkConstr adt
+  where checkConstr (ConDecl _ args) = mapM_ checkType args
 
--- | Verifies that a type is of the right kind
-checkKind :: Default e => Type -> TC e Kind
-checkKind (TVar _) = return KStar -- type variables currently always have kind *
-checkKind t@(TCon tcon args) = do
-  argKinds   <- mapM checkKind args
-  let actual = foldr KFun KStar argKinds
-  use (typeScope . at tcon) >>= \case
-    Nothing  -> errorTC (ErrTyConNotInScope tcon)
-    Just expected
-      | expected == actual -> return KStar
-      | otherwise -> errorTC (ErrKindMismatch t expected actual)
+checkType :: Default e => Type -> TC e ()
+checkType ty = local (errContext.errType .~ Just ty) $ go ty where
+  go :: Default e => Type -> TC e ()
+  go (TVar v) = views tyVarScope (HS.member v) >>= flip unless (errorTC $ ErrTyVarNotInScope v)
+  go t@(TCon tcon args) =
+    use (typeScope . at tcon) >>= \case
+      Nothing  -> errorTC (ErrTyConNotInScope tcon)
+      Just (Kind nargs)
+        | nargs == length args -> mapM_ go args
+        | otherwise -> errorTC $ ErrKindMismatch t (Kind nargs) (Kind $ length args)
