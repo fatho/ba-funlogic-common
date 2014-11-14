@@ -1,28 +1,29 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE PatternSynonyms            #-}
-{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RankNTypes            #-}
 module Language.CuMin.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad             hiding (mapM, mapM_)
-import           Control.Monad.Error       hiding (mapM, mapM_)
-import           Control.Monad.Reader      hiding (mapM, mapM_)
-import           Control.Monad.RWS         hiding (mapM, mapM_)
-import           Control.Monad.State       hiding (mapM, mapM_)
+import           Control.Monad                hiding (mapM, mapM_)
+import           Control.Monad.Error          hiding (mapM, mapM_)
+import           Control.Monad.Reader         hiding (mapM, mapM_)
+import           Control.Monad.RWS            hiding (mapM, mapM_)
+import           Control.Monad.State          hiding (mapM, mapM_)
+import           Data.Default.Class
 import           Data.Foldable
-import qualified Data.HashSet              as HS
-import qualified Data.Map                  as M
+import qualified Data.HashSet                 as HS
+import qualified Data.Map                     as M
 import           Data.Traversable
-import           Prelude                   hiding (any, foldr, mapM, mapM_)
+import           Prelude                      hiding (any, foldr, mapM, mapM_)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import           FunLogic.Core.TypeChecker
 import           Language.CuMin.AST
-import           FunLogic.Core.TypeChecker
 
 -- * Built-Int types
 
@@ -37,16 +38,31 @@ builtInTyCons = M.fromList
 builtInADTs :: M.Map Name ADT
 builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
 
+-- * Error Types
+
+data CuMinErrCtx
+  = CuMinErrCtx
+  { _errExp :: Maybe Exp
+  }
+
+instance Default CuMinErrCtx where
+  def = CuMinErrCtx Nothing
+
+instance Pretty CuMinErrCtx where
+  pretty (CuMinErrCtx ectx) = case ectx of
+    Nothing -> mempty
+    Just e -> text "Expression:" <+> text (show e)
+
 -- * Type Checking
 
-includeBuiltIns :: TC ()
+includeBuiltIns :: TC CuMinErrCtx ()
 includeBuiltIns = do
   typeScope %= M.union builtInTyCons
   typeScope %= M.union (adtKind <$> builtInADTs)
   topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems builtInADTs)
 
 -- | Typechecks a module.
-checkModule :: Module -> TC ()
+checkModule :: Module -> TC CuMinErrCtx ()
 checkModule saltMod = do
   -- check kinds of ADT definitions
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
@@ -57,7 +73,7 @@ checkModule saltMod = do
   mapM_ checkBinding (saltMod^.modBinds)
 
 -- | Typechecks a single top level binding
-checkBinding :: Binding -> TC ()
+checkBinding :: Binding -> TC CuMinErrCtx ()
 checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
   let (TyDecl _ _ ty) = bnd^.bindingType
   void $ checkKind ty
@@ -65,12 +81,12 @@ checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
   realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ tcExp $ bnd^.bindingExpr
   assertTypesEq realBodyTy bodyTy
 
-extractArgs :: [Name] -> Type -> TC ([(Name,Type)], Type)
+extractArgs :: [Name] -> Type -> TC CuMinErrCtx ([(Name,Type)], Type)
 extractArgs [] ty             = return ([], ty)
 extractArgs (x:xs) (TFun a b) = over _1 ((x,a):) <$> extractArgs xs b
 extractArgs (_:_) _           = errorTC $ ErrGeneral "too many arguments for function"
 
-tcExp :: Exp -> TC Type
+tcExp :: Exp -> TC CuMinErrCtx Type
 tcExp (EVar vname) = view (localScope.at vname) >>= \case
   Nothing -> use (topScope.at vname) >>= \case
     Nothing -> errorTC (ErrVarNotInScope vname)
@@ -129,7 +145,7 @@ tcExp (ECase expr alts) = do
 
 tcExp (EFailed ty) = return ty
 
-tcAlt :: Type -> Alt -> TC Type
+tcAlt :: Type -> Alt -> TC CuMinErrCtx Type
 tcAlt pty (Alt pat body) = case pat of
   PVar v -> local (localScope.at v .~ Just pty) $ tcExp body
   PCon c vs -> case pty of

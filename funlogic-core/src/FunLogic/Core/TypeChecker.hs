@@ -32,9 +32,15 @@ import           FunLogic.Core.Pretty
 type VarId = Int
 
 -- | Errors reported by type checker
-data TCErr
-  = TCErr ErrMsg ErrCtx
+data TCErr e
+  = TCErr ErrMsg (ErrCtx e)
   deriving (Show)
+
+data ErrCtx e
+  = ErrCtx
+  { _errSrc :: Maybe SrcRef
+  , _userCtx :: e
+  } deriving (Show)
 
 data ErrMsg
   = ErrGeneral String
@@ -47,25 +53,27 @@ data ErrMsg
   | ErrTypeMismatch Type Type
   deriving (Show)
 
-data ErrCtx
-  = ErrCtx
-  { _errSrc :: Maybe SrcRef
-  } deriving (Show)
-
 data Kind
   = KStar
   | KFun Kind Kind
   deriving (Show, Eq)
 
-instance Error TCErr where
+instance Default e => Error (TCErr e) where
   noMsg = strMsg "unknown error in type checker"
-  strMsg msg = TCErr (ErrGeneral msg) (ErrCtx Nothing)
+  strMsg msg = TCErr (ErrGeneral msg) def
+
+instance Default e => Default (ErrCtx e) where
+  def = ErrCtx Nothing def
+
+instance Pretty e => Pretty (ErrCtx e) where
+  pretty (ErrCtx src user) = text "Location:" <+> text (maybe "unknown" show src)
+                            PP.<$> pretty user
 
 makeLenses ''ErrCtx
 
-prettyErr :: TCErr -> Doc
-prettyErr (TCErr msg ctx) = red (text "Error!") <+> fromMaybe mempty (text . show <$> ctx^.errSrc)
-  PP.<$> indent 2 (prettyMsg msg)
+prettyErr :: Pretty e => TCErr e -> Doc
+prettyErr (TCErr msg ctx) = red (text "Error!") PP.<$> indent 2 (prettyMsg msg)
+  PP.<$> (text "Context:" PP.<$> indent 2 (pretty ctx))
 
 prettyMsg :: ErrMsg -> Doc
 prettyMsg err = case err of
@@ -95,24 +103,24 @@ data TCState
     }
 
 -- | Environment used during type checking
-data TCEnv
+data TCEnv e
   = TCEnv
     { _localScope :: M.Map Name Type   -- ^ identifiers and their corresponding types currently in scope
-    , _errContext :: ErrCtx
+    , _errContext :: ErrCtx e
     }
-
-instance Default ErrCtx where
-  def = ErrCtx Nothing
 
 instance Default TCState where
   def = TCState M.empty M.empty
 
-instance Default TCEnv where
+instance Default e => Default (TCEnv e) where
   def = TCEnv M.empty def
 
+
+type MonadTCErr e = MonadError (TCErr e)
+type MonadTCReader e = MonadReader (TCEnv e)
 -- | Type checker monad.
-newtype TC a = TC { unwrapTC :: ErrorT TCErr (RWS TCEnv () TCState) a }
-             deriving (Functor, Applicative, Monad, MonadError TCErr, MonadReader TCEnv, MonadState TCState)
+newtype TC e a = TC { unwrapTC :: ErrorT (TCErr e) (RWS (TCEnv e) () TCState) a }
+             deriving (Functor, Applicative, Monad, MonadTCErr e, MonadTCReader e, MonadState TCState)
 
 makeLenses ''TCEnv
 makeLenses ''TCState
@@ -120,13 +128,13 @@ makeLenses ''TCState
 -- * Type checker interface
 
 -- | Run a type checker action with a given initial state and environment.
-evalTC :: TC a -> TCState -> TCEnv -> Either TCErr a
+evalTC :: TC e a -> TCState -> TCEnv e -> Either (TCErr e) a
 evalTC action istate env = fst $ evalRWS (runErrorT (unwrapTC action)) env istate
 
-errorTC :: ErrMsg -> TC a
+errorTC :: Default e => ErrMsg -> TC e a
 errorTC msg = view errContext >>= throwError . TCErr msg
 
-assertTypesEq :: Type -> Type -> TC ()
+assertTypesEq :: Default e => Type -> Type -> TC e ()
 assertTypesEq ty1 ty2 = when (ty1 /= ty2) (errorTC $ ErrTypeMismatch ty1 ty2)
 
 -- * Helper Functions
@@ -142,7 +150,7 @@ adtKind :: ADT -> Kind
 adtKind adt = foldr KFun KStar (KStar <$ adt ^. adtTyArgs)
 
 -- | Instantiates type variables in a type declaration
-instantiate :: [Type] -> TyDecl -> TC Type
+instantiate :: Default e => [Type] -> TyDecl -> TC e Type
 instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
   when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ "Wrong number of arguments for type instantiation of: " ++ show decl)
   -- TODO: check context when instantiating type declaration
@@ -157,13 +165,13 @@ instantiate tyArgs decl@(TyDecl tyVars ctx ty) = do
 -- * Type Checking
 
 -- | Typechecks an ADT
-checkADT :: ADT -> TC ()
+checkADT :: Default e => ADT -> TC e ()
 checkADT adt = local (errContext.errSrc .~ Just (adt^.adtSrcRef))
              $ mapMOf_ (adtConstr.traverse) checkConstr adt
   where checkConstr (ConDecl _ args) = mapM_ checkKind args
 
 -- | Verifies that a type is of the right kind
-checkKind :: Type -> TC Kind
+checkKind :: Default e => Type -> TC e Kind
 checkKind (TVar _) = return KStar -- type variables currently always have kind *
 checkKind t@(TCon tcon args) = do
   argKinds   <- mapM checkKind args

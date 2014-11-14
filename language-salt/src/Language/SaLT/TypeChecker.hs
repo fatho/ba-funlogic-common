@@ -1,23 +1,27 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE PatternSynonyms            #-}
-{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RankNTypes            #-}
 module Language.SaLT.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad             hiding (mapM, mapM_)
-import           Control.Monad.Reader      hiding (mapM, mapM_)
+import           Control.Monad                hiding (mapM, mapM_)
+import           Control.Monad.Reader         hiding (mapM, mapM_)
+import           Data.Default.Class
 import           Data.Foldable
-import qualified Data.Map                  as M
+import qualified Data.Map                     as M
+import           Data.Monoid
 import           Data.Traversable
-import           Prelude                   hiding (any, foldr, mapM, mapM_)
+import           Prelude                      hiding (any, foldr, mapM, mapM_)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import           FunLogic.Core.TypeChecker
 import           Language.SaLT.AST
+import           Language.SaLT.Pretty
 
 -- * Built-Int types
 
@@ -33,16 +37,31 @@ builtInTyCons = M.fromList
 builtInADTs :: M.Map Name ADT
 builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
 
+-- * Error Types
+
+data SaltErrCtx
+  = SaltErrCtx
+  { _errExp :: Maybe Exp
+  }
+
+instance Default SaltErrCtx where
+  def = SaltErrCtx Nothing
+
+instance Pretty SaltErrCtx where
+  pretty (SaltErrCtx ectx) = case ectx of
+    Nothing -> mempty
+    Just e -> text "Expression:" <+> prettyExp e
+
 -- * Type Checking
 
-includeBuiltIns :: TC ()
+includeBuiltIns :: TC SaltErrCtx ()
 includeBuiltIns = do
   typeScope %= M.union builtInTyCons
   typeScope %= M.union (adtKind <$> builtInADTs)
   topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems builtInADTs)
 
 -- | Typechecks a module.
-checkModule :: Module -> TC ()
+checkModule :: Module -> TC SaltErrCtx ()
 checkModule saltMod = do
   -- check kinds of ADT definitions
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
@@ -53,14 +72,14 @@ checkModule saltMod = do
   mapM_ checkBinding (saltMod^.modBinds)
 
 -- | Typechecks a single top level binding
-checkBinding :: Binding -> TC ()
+checkBinding :: Binding -> TC SaltErrCtx ()
 checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
   bodyTy <- tcExp $ bnd^.bindingExpr
   let (TyDecl _ _ ty) = bnd^.bindingType
   void $ checkKind ty
   assertTypesEq bodyTy ty
 
-tcExp :: Exp -> TC Type
+tcExp :: Exp -> TC SaltErrCtx Type
 tcExp (EVar vname) = view (localScope.at vname) >>= \case
   Nothing -> use (topScope.at vname) >>= \case
     Nothing -> errorTC (ErrVarNotInScope vname)
@@ -127,7 +146,7 @@ tcExp (EFailed ty) = checkKind ty >> return ty
 
 tcExp (EUnknown ty) = checkKind ty >> return ty
 
-tcAlt :: Type -> Alt -> TC Type
+tcAlt :: Type -> Alt -> TC SaltErrCtx Type
 tcAlt pty (Alt pat body) = case pat of
   PVar v -> local (localScope.at v .~ Just pty) $ tcExp body
   PCon c vs -> case pty of
