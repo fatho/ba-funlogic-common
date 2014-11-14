@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE PatternSynonyms    #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeFamilies           #-}
 module FunLogic.Core.AST where
 
 import           Control.Lens
@@ -11,6 +13,20 @@ import qualified Data.Map     as M
 
 type Column = Int
 type Row    = Int
+
+-- | A module containing ADTs and bindings of type b
+data CoreModule b = CoreModule
+  { _modName  :: Name
+  , _modBinds :: M.Map Name b
+  , _modADTs  :: M.Map Name ADT
+  } deriving (Show)
+
+class IsBinding b where
+  type BindingExp b :: *
+  bindingName :: Lens' b Name
+  bindingExpr :: Lens' b (BindingExp b)
+  bindingSrc  :: Lens' b SrcRef
+  bindingType :: Lens' b TyDecl
 
 data SrcRef
   = SrcRef
@@ -57,6 +73,7 @@ data Type
 instance Plated Type
 
 -- Lenses
+makeLenses ''CoreModule
 makeLenses ''ADT
 
 -- * Useful Type Pattern Synonyms

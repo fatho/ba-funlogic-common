@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     FunLogic.Core.AST
+                       FunLogic.Core.ModBuilder
                        FunLogic.Core.Parser
                        FunLogic.Core.Pretty
                        FunLogic.Core.TypeChecker

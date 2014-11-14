@@ -1,7 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies    #-}
 module Language.CuMin.AST
-    ( Module(..)
+    ( Module
     , Binding(..)
     , Decl(..)
     , module FunLogic.Core.AST
@@ -10,20 +11,15 @@ module Language.CuMin.AST
     , PrimOp(..)
     , Alt(..)
     , Pat(..)
-    , modName, modADTs, modBinds
-    , bindingName, bindingArgs, bindingExpr, bindingType, bindingSrc
+    , bindingArgs
     ) where
 
+import           Control.Applicative
 import           Control.Lens
-import qualified Data.Map          as M
 
 import           FunLogic.Core.AST
 
-data Module = Module
-  { _modName  :: Name
-  , _modBinds :: M.Map Name Binding
-  , _modADTs  :: M.Map Name ADT
-  } deriving (Show)
+type Module = CoreModule Binding
 
 data Binding = Binding
   { _bindingName :: Name
@@ -70,6 +66,13 @@ data Pat
   deriving (Show)
 
 -- Lenses
-makeLenses ''Module
-makeLenses ''Binding
+makeLensesFor [("_bindingArgs", "bindingArgs")] ''Binding
+
+instance IsBinding Binding where
+  type BindingExp Binding = Exp
+  bindingName f bnd = (\x -> bnd {_bindingName = x}) <$> f (_bindingName bnd)
+  bindingExpr f bnd = (\x -> bnd {_bindingExpr = x}) <$> f (_bindingExpr bnd)
+  bindingType f bnd = (\x -> bnd {_bindingType = x}) <$> f (_bindingType bnd)
+  bindingSrc  f bnd = (\x -> bnd {_bindingSrc  = x}) <$> f (_bindingSrc  bnd)
+
 

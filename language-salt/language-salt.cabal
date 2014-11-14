@@ -17,7 +17,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Language.SaLT.AST
-                     , Language.SaLT.ModBuilder
                      , Language.SaLT.Parser
                      , Language.SaLT.Pretty
                      , Language.SaLT.TypeChecker
@@ -45,7 +44,7 @@ library
 
 executable salt-check
   main-is:             Main.hs
-  hs-source-dirs:       salt-check
+  hs-source-dirs:      salt-check
   build-depends:       base                 ==4.7.*
                      , text                 ==1.1.*
                      , trifecta             ==1.4.*
