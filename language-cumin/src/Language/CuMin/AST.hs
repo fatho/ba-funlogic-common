@@ -48,10 +48,6 @@ data Exp
   | ECase Exp [Alt]
   deriving (Show)
 
-data Lit
-  = LInt Integer
-  deriving (Show)
-
 data PrimOp
   = PrimAdd
   | PrimEq
@@ -59,11 +55,6 @@ data PrimOp
 
 data Alt
   = Alt Pat Exp
-  deriving (Show)
-
-data Pat
-  = PCon Name [Name]
-  | PVar Name
   deriving (Show)
 
 instance HasPrecedence Exp where

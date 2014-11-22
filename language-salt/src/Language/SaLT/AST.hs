@@ -14,7 +14,6 @@ module Language.SaLT.AST
   ) where
 
 import           Control.Applicative
-import           Control.Lens
 
 import           FunLogic.Core.AST
 
@@ -69,10 +68,6 @@ instance HasPrecedence Exp where
     ECon _ _ -> 6
     ESet _ -> 6
 
-data Lit
-  = LInt Integer
-  deriving (Show)
-
 data PrimOp
   = PrimAdd
   | PrimEq
@@ -81,11 +76,6 @@ data PrimOp
 
 data Alt
   = Alt Pat Exp
-  deriving (Show)
-
-data Pat
-  = PCon Name [Name]
-  | PVar Name
   deriving (Show)
 
 -- Lenses

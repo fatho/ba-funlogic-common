@@ -53,6 +53,15 @@ data ConDecl
   = ConDecl Name [Type]
   deriving (Show, Data, Typeable)
 
+data Lit
+  = LInt Integer
+  deriving (Show)
+
+data Pat
+  = PCon Name [Name]
+  | PVar Name
+  deriving (Show)
+
 -- | Example: `forall a.Data a => (a,a)`
 --   --> `TyDecl [RName "a"] [TyConstraint "Data" (RName "a")] (TCon "Pair" [(RName "a"), (RName "a")])`
 data TyDecl
