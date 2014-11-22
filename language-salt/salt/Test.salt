@@ -47,13 +47,15 @@ foo = tMap<:Nat,Nat:> (\x :: Nat -> x + 1) (Pair<:Nat,Nat:> 1 3)
 bar :: [Nat]
 bar = filter<:Nat:> (\x :: Nat -> not (x == 1)) [1,4,1,1,2,1,1]<:Nat:>
 
-pairWithAny :: forall a b. Data a => b -> Pair a b
-pairWithAny = \y :: b -> Pair<:a,b:> unknown<:a:> y
+pairWithAny :: forall a b. Data a => b -> Set (Pair a b)
+pairWithAny = \y :: b -> unknown<:a:> >>= \x :: a -> {Pair<:a,b:> x y}
 
 {- Data tests -}
-dataRight :: forall a b c. (Data a, Data b) => c -> Pair [a] (Either (Maybe b) b)
-dataRight = \c :: c -> const<:Pair [a] (Either (Maybe b) b),c:>
-  (Pair<:[a],Either (Maybe b) b:> unknown<:[a]:> unknown<:Either (Maybe b) b:>) c
+dataRight :: forall a b c. (Data a, Data b) => Set (Pair [a] (Either (Maybe b) b))
+dataRight =
+  unknown<:[a]:> >>= \x :: [a] ->
+  unknown<:Either (Maybe b) b:> >>= \y :: Either (Maybe b) b ->
+      {Pair<:[a],Either (Maybe b) b:> x y}
 
 {- This should not compile: -}
 {-

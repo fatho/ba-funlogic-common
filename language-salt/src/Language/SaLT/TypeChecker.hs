@@ -173,7 +173,7 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
   go (EUnknown ty) = do
     checkType ty
     checkForDataInstance ty
-    return ty
+    return $ TSet ty
 
 checkAlt :: Type -> Alt -> TC SaltErrCtx Type
 checkAlt pty (Alt pat body) = case pat of
