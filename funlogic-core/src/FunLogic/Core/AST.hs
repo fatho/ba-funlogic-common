@@ -57,7 +57,7 @@ data ConDecl
 --   --> `TyDecl [RName "a"] [TyConstraint "Data" (RName "a")] (TCon "Pair" [(RName "a"), (RName "a")])`
 data TyDecl
   = TyDecl [TVName] [TyConstraint] Type
-  deriving (Show, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable)
 
 -- | Example: `Data a` --> `TyConstraint "Data" "a"`
 data TyConstraint

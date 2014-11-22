@@ -4,6 +4,16 @@ data Foo a b c
 
 data Bar a b = Bar (Set a) (Set b)
 
+data Maybe a = Just a | Nothing
+
+data Either a b = Left a | Right b
+
+data Phantom a = Phantom
+
+const :: forall a b.a -> b -> a
+const = \c :: a ->
+        \x :: b -> c
+
 not :: Bool -> Bool
 not = \x :: Bool -> case x of
               True -> False
@@ -39,6 +49,17 @@ bar = filter<:Nat:> (\x :: Nat -> not (x == 1)) [1,4,1,1,2,1,1]<:Nat:>
 
 pairWithAny :: forall a b. Data a => b -> Pair a b
 pairWithAny = \y :: b -> Pair<:a,b:> unknown<:a:> y
+
+{- Data tests -}
+dataRight :: forall a b c. (Data a, Data b) => c -> Pair [a] (Either (Maybe b) b)
+dataRight = \c :: c -> const<:Pair [a] (Either (Maybe b) b),c:>
+  (Pair<:[a],Either (Maybe b) b:> unknown<:[a]:> unknown<:Either (Maybe b) b:>) c
+
+{- This should not compile: -}
+{-
+dataWrong :: Pair (Maybe [Bool -> Set Bool]) Bool
+dataWrong = pairWithAny<:(Maybe [Bool -> Set Bool]),Bool:> True
+-}
 
 {- Just a boring comment -}
 

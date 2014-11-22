@@ -4,6 +4,18 @@ data Either a b = Left a | Right b
 
 data Bool = True | False
 
+data Phantom a = Phantom
+
 data Test
-  = TestMaybe (Maybe Int)
-  | TestEither (Either Bool Int)
+  = TestMaybe (Maybe Nat)
+  | TestEither (Either Bool Nat)
+
+data NoData a = C (Set a)
+
+{- instance to be derived:
+   (Data b, Data c, Data d) => Data (DataTest a b c d) -}
+data DataTest a b c d
+  = C1 (Phantom (Set a))
+  | C2 (Either b c)
+  | C3 (Phantom (a -> b))
+  | C4 (DataTest a d c b)
