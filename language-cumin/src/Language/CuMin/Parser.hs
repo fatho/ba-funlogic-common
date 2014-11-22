@@ -143,7 +143,7 @@ conE = ECon
        <*> option [] (annotBrackets $ commaSep functionType)
 
 litE :: CuMinParser Exp
-litE = ELit . LInt <$> highlight H.Number natural
+litE = ELit . LNat <$> highlight H.Number natural
 
 caseE :: CuMinParser Exp
 caseE = do

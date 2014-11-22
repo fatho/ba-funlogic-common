@@ -138,7 +138,7 @@ conE = ECon
        <*> option [] (annotBrackets $ commaSep functionType)
 
 litE :: SaltParser Exp
-litE = ELit . LInt <$> highlight H.Number natural
+litE = ELit . LNat <$> highlight H.Number natural
 
 lambdaE :: SaltParser Exp
 lambdaE = symbol "\\"

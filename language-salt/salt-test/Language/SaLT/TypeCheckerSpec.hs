@@ -46,14 +46,14 @@ spec = do
 
   describe "correctly determines type valid expressions" $ do
     it "addition" $
-      EPrim PrimAdd [ELit (LInt 0), ELit (LInt 1)] `shouldHaveType` TNat
+      EPrim PrimAdd [ELit (LNat 0), ELit (LNat 1)] `shouldHaveType` TNat
     it "lambda" $
       ELam "x" TNat (EVar "x") `shouldHaveType` TFun TNat TNat
     -- TODO: add more valid expressions
 
   describe "rejects incorrectly typed expressions" $
     it "addition of Nat and Bool" $
-      shouldNotPassTC $ EPrim PrimAdd [ECon "False" [], ELit (LInt 0)]
+      shouldNotPassTC $ EPrim PrimAdd [ECon "False" [], ELit (LNat 0)]
     -- TODO: add more invalid expressions
 
   it "rejects invalid test files" $

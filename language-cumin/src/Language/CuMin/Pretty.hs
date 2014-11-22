@@ -31,7 +31,7 @@ prettyExp ex = case ex of
   -- higher precedence requirement.
   EApp e1 e2 -> withPrec prc prettyExp e1 </> withPrec (prc + 1) prettyExp e2
   ELit l -> case l of
-    LInt i -> text $ show i
+    LNat i -> text $ show i
   EPrim p exps -> case (p, exps) of
     -- Here it is assumed that addition is associative although this doesn't hold for
     -- e.g. floating point numbers. Otherwise we'd need more parentheses.

@@ -54,7 +54,7 @@ data ConDecl
   deriving (Show, Data, Typeable)
 
 data Lit
-  = LInt Integer
+  = LNat Integer
   deriving (Show)
 
 data Pat

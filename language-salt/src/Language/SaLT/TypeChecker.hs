@@ -130,7 +130,7 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
         return funDest
       calleeTy -> errorTC $ ErrTypeMismatch calleeTy (TFun argTy (TVar "<result>"))
 
-  go (ELit (LInt _)) = return TNat
+  go (ELit (LNat _)) = return TNat
 
   go (EPrim PrimAdd [x, y]) = do
     checkExp x >>= assertTypesEq TNat

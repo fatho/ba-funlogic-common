@@ -141,7 +141,7 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
     checkForDataInstance ty
     local (localScope.at var .~ Just ty) $ checkExp body
 
-  go (ELit (LInt _)) = return TNat
+  go (ELit (LNat _)) = return TNat
 
   go (EPrim PrimAdd [x, y]) = do
     checkExp x >>= assertTypesEq TNat
