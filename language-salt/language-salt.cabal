@@ -25,6 +25,7 @@ library
                      , RankNTypes
                      , LambdaCase
                      , RecordWildCards
+  ghc-options:         -Wall
 
   build-depends:       base                 ==4.7.*
                      , text                 ==1.1.*
@@ -45,6 +46,7 @@ library
 executable salt-check
   main-is:             Main.hs
   hs-source-dirs:      salt-check
+  ghc-options:         -Wall
   build-depends:       base                 ==4.7.*
                      , text                 ==1.1.*
                      , trifecta             ==1.4.*
@@ -61,6 +63,7 @@ executable salt-check
 executable salt-pretty
   main-is:             Main.hs
   hs-source-dirs:      salt-pretty
+  ghc-options:         -Wall
   build-depends:       base                 ==4.7.*
                      , text                 ==1.1.*
                      , trifecta             ==1.4.*
@@ -73,3 +76,28 @@ executable salt-pretty
                      , language-salt
                      , funlogic-core
   default-language:    Haskell2010
+
+test-suite salt-test
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
+  hs-source-dirs:      salt-test
+  main-is:             Spec.hs
+  other-modules:       Language.SaLT.ParserSpec
+                       Language.SaLT.PrettySpec
+                       Language.SaLT.TypeCheckerSpec
+  build-depends:       base                 ==4.7.*
+                     , text                 ==1.1.*
+                     , trifecta             ==1.4.*
+                     , lens                 ==4.4.*
+                     , mtl                  ==2.1.*
+                     , containers           ==0.5.*
+                     , unordered-containers ==0.2.*
+                     , ansi-wl-pprint       ==0.6.*
+                     , directory            ==1.2.*
+                     , filepath             ==1.3.*
+                     , data-default-class
+                     , language-salt
+                     , funlogic-core
+                     , hspec                ==1.12.*
+  default-language:    Haskell2010
+

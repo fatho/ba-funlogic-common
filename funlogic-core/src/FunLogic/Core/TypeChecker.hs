@@ -85,6 +85,12 @@ instance Pretty e => Pretty (ErrCtx e) where
     <> maybe mempty (\t -> line <> text "Type:" <+> highlight (prettyType t)) ty
     PP.<$> pretty user
 
+instance Pretty e => Pretty (TCErr e) where
+  pretty = prettyErr
+
+instance Pretty ErrMsg where
+  pretty = prettyMsg
+
 errorDoc :: Doc -> Doc
 errorDoc = red
 
