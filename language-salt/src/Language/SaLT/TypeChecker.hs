@@ -10,14 +10,16 @@ module Language.SaLT.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad                hiding (mapM, mapM_)
-import           Control.Monad.Reader         hiding (mapM, mapM_)
+import           Control.Monad                hiding (mapM, mapM_, forM_)
+import           Control.Monad.Reader         hiding (mapM, mapM_, forM_)
 import           Data.Default.Class
 import           Data.Foldable
+import           Data.List (elemIndices)
 import qualified Data.Map                     as M
 import           Data.Monoid
+import qualified Data.Set                     as S
 import           Data.Traversable
-import           Prelude                      hiding (any, foldr, mapM, mapM_)
+import           Prelude                      hiding (any, foldr, mapM, mapM_, elem)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>),(<>))
 
 import           FunLogic.Core.TypeChecker
@@ -37,6 +39,14 @@ builtInTyCons = M.fromList
 
 builtInADTs :: M.Map Name ADT
 builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
+
+builtInDataInstances :: M.Map Name (S.Set Int)
+builtInDataInstances = M.fromList
+  [ ("Nat", S.empty)
+  , ("Bool", S.empty)
+  , ("List", S.fromList [0])
+  , ("Pair", S.fromList [0,1])
+  ]
 
 -- * Error Types
 
@@ -69,6 +79,9 @@ checkModule saltMod = do
   -- check kinds of ADT definitions
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
   mapM_ checkADT (saltMod^.modADTs)
+  -- derive Data instances
+  dataScope %= M.union builtInDataInstances
+  deriveDataInstances (saltMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)
   topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)
@@ -76,8 +89,9 @@ checkModule saltMod = do
 
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC SaltErrCtx ()
-checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
-  let (TyDecl tvars _ ty) = bnd^.bindingType
+checkBinding bnd = let (TyDecl tvars tconstraints ty) = bnd^.bindingType in
+  local ( (errContext.errSrc .~ Just (bnd^.bindingSrc))
+        . (localConstraints .~ tconstraints)) $
   withTyVars tvars $ do
     checkType ty
     bodyTy <- checkExp $ bnd^.bindingExpr
@@ -95,9 +109,13 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
 
   go (EFun fn tyArgs) = use (topScope.at fn) >>= \case
     Nothing -> errorTC (ErrFunNotInScope fn)
-    Just decl -> do
+    Just decl@(TyDecl tyDeclVars tyConstraints _) -> do
       mapM_ checkType tyArgs
-      instantiate tyArgs decl -- TODO: check context
+      let
+        dataConstraints = tyConstraints >>= \(TyConstraint tyClass tv) -> if tyClass == "Data" then return tv else []
+        dataConstraintsIndices = dataConstraints >>= (`elemIndices` tyDeclVars)
+      mapM_ (checkForDataInstance . (tyArgs !!)) dataConstraintsIndices
+      instantiate tyArgs decl
 
   go (ELam argName argTy body) = do
     checkType argTy
@@ -152,7 +170,10 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
 
   go (EFailed ty) = checkType ty >> return ty
 
-  go (EUnknown ty) = checkType ty >> return ty
+  go (EUnknown ty) = do
+    checkType ty
+    checkForDataInstance ty
+    return $ TSet ty
 
 checkAlt :: Type -> Alt -> TC SaltErrCtx Type
 checkAlt pty (Alt pat body) = case pat of

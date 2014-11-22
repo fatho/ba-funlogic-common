@@ -124,7 +124,8 @@ letE = do
       Left ty -> return $ ELetFree name ty body
       Right e -> return $ ELet name e body
   where
-    letFree = symbol "::" >> Left <$> complexType <* reserved "free"
+    letFree = -- allow function types while parsing for better error messages:
+      symbol "::" >> Left <$> functionType <* reserved "free"
     letExp  = symbol "=" >> Right <$> expression
 
 appE :: CuMinParser Exp

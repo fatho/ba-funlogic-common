@@ -49,6 +49,12 @@ dup2 = let x :: a free in
        let y :: a free in
        Pair<:a,a:> x y
 
+{- This should fail due to missing Data constraint: -}
+{-
+dataWrong :: forall a. Pair ([a],a) ([a],a)
+dataWrong = dup2<:([a],a):>
+-}
+
 {- Just a boring comment -}
 
 {--}

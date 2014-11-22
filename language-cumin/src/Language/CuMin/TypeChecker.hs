@@ -18,7 +18,9 @@ import           Control.Monad.State          hiding (mapM, mapM_)
 import           Data.Default.Class
 import           Data.Foldable
 import qualified Data.HashSet                 as HS
+import           Data.List (elemIndices)
 import qualified Data.Map                     as M
+import qualified Data.Set                     as S
 import           Data.Traversable
 import           Prelude                      hiding (any, foldr, mapM, mapM_)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -39,6 +41,14 @@ builtInTyCons = M.fromList
 
 builtInADTs :: M.Map Name ADT
 builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
+
+builtInDataInstances :: M.Map Name (S.Set Int)
+builtInDataInstances = M.fromList
+  [ ("Nat", S.empty)
+  , ("Bool", S.empty)
+  , ("List", S.fromList [0])
+  , ("Pair", S.fromList [0,1])
+ ]
 
 -- * Error Types
 
@@ -71,6 +81,9 @@ checkModule saltMod = do
   -- check kinds of ADT definitions
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
   mapM_ checkADT (saltMod^.modADTs)
+  -- derive Data instances
+  dataScope %= M.union builtInDataInstances
+  deriveDataInstances (saltMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)
   topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)
@@ -78,8 +91,9 @@ checkModule saltMod = do
 
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC CuMinErrCtx ()
-checkBinding bnd = local (errContext.errSrc .~ Just (bnd^.bindingSrc)) $ do
-  let (TyDecl tvars _ ty) = bnd^.bindingType
+checkBinding bnd = let (TyDecl tvars tconstraints ty) = bnd^.bindingType in
+  local ( (errContext.errSrc .~ Just (bnd^.bindingSrc))
+        . (localConstraints .~ tconstraints)) $
   withTyVars tvars $ do
     checkType ty
     (argTys, bodyTy) <- extractArgs (bnd^.bindingArgs) ty
@@ -103,9 +117,13 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
 
   go (EFun fn tyArgs) = use (topScope.at fn) >>= \case
     Nothing -> errorTC (ErrFunNotInScope fn)
-    Just decl -> do
-       mapM_ checkType tyArgs
-       instantiate tyArgs decl -- TODO: check context
+    Just decl@(TyDecl tyDeclVars tyConstraints _) -> do
+      mapM_ checkType tyArgs
+      let
+        dataConstraints = tyConstraints >>= \(TyConstraint tyClass tv) -> if tyClass == "Data" then return tv else []
+        dataConstraintsIndices = dataConstraints >>= (`elemIndices` tyDeclVars)
+      mapM_ (checkForDataInstance . (tyArgs !!)) dataConstraintsIndices
+      instantiate tyArgs decl
 
   go (EApp callee arg) = do
     argTy    <- checkExp arg
@@ -119,7 +137,8 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
     varTy <- checkExp e
     local (localScope.at var .~ Just varTy) $ checkExp body
 
-  go (ELetFree var ty body) =
+  go (ELetFree var ty body) = do
+    checkForDataInstance ty
     local (localScope.at var .~ Just ty) $ checkExp body
 
   go (ELit (LInt _)) = return TNat
