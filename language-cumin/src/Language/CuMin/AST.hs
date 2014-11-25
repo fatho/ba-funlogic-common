@@ -1,7 +1,8 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
-{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE PatternSynonyms    #-}
+{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TypeFamilies       #-}
 module Language.CuMin.AST
     ( Module
     , Binding(..)
@@ -17,6 +18,8 @@ module Language.CuMin.AST
 
 import           Control.Applicative
 import           Control.Lens
+import           Data.Data
+import           Data.Typeable
 
 import           FunLogic.Core.AST
 
@@ -28,12 +31,12 @@ data Binding = Binding
   , _bindingExpr :: Exp
   , _bindingType :: TyDecl
   , _bindingSrc  :: SrcRef
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 data Decl
   = DTop Binding
   | DData ADT
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data Exp
   = EVar Name
@@ -46,16 +49,16 @@ data Exp
   | EPrim PrimOp [Exp]
   | ECon Name [Type]
   | ECase Exp [Alt]
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data PrimOp
   = PrimAdd
   | PrimEq
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data Alt
   = Alt Pat Exp
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 instance HasPrecedence Exp where
   prec = \case

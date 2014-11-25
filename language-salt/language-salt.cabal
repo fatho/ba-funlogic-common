@@ -17,8 +17,11 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Language.SaLT.AST
+                     , Language.SaLT.ModBuilder
                      , Language.SaLT.Parser
+                     , Language.SaLT.Prelude
                      , Language.SaLT.Pretty
+                     , Language.SaLT.TH
                      , Language.SaLT.TypeChecker
   -- other-modules:       
   other-extensions:    TemplateHaskell
@@ -39,6 +42,7 @@ library
                      , indentation          ==0.2.*
                      , ansi-wl-pprint       ==0.6.*
                      , data-default-class
+                     , template-haskell
                      , funlogic-core
   hs-source-dirs:      src
   default-language:    Haskell2010

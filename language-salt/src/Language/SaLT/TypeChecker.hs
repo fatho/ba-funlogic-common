@@ -10,17 +10,17 @@ module Language.SaLT.TypeChecker where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad                hiding (mapM, mapM_, forM_)
-import           Control.Monad.Reader         hiding (mapM, mapM_, forM_)
+import           Control.Monad                hiding (forM_, mapM, mapM_)
+import           Control.Monad.Reader         hiding (forM_, mapM, mapM_)
 import           Data.Default.Class
 import           Data.Foldable
-import           Data.List (elemIndices)
+import           Data.List                    (elemIndices)
 import qualified Data.Map                     as M
 import           Data.Monoid
-import qualified Data.Set                     as S
 import           Data.Traversable
-import           Prelude                      hiding (any, foldr, mapM, mapM_, elem)
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>),(<>))
+import           Prelude                      hiding (any, elem, foldr, mapM,
+                                               mapM_)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 import           FunLogic.Core.TypeChecker
 import           Language.SaLT.AST
@@ -35,17 +35,6 @@ builtInTyCons = M.fromList
   [ ("Set", Kind 1)
   , ("Nat", Kind 0)
   , ("->", Kind 2)
-  ]
-
-builtInADTs :: M.Map Name ADT
-builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
-
-builtInDataInstances :: M.Map Name (S.Set Int)
-builtInDataInstances = M.fromList
-  [ ("Nat", S.empty)
-  , ("Bool", S.empty)
-  , ("List", S.fromList [0])
-  , ("Pair", S.fromList [0,1])
   ]
 
 -- * Error Types
@@ -68,19 +57,16 @@ instance Pretty SaltErrCtx where
 -- * Type Checking
 
 includeBuiltIns :: TC SaltErrCtx ()
-includeBuiltIns = do
-  typeScope %= M.union builtInTyCons
-  typeScope %= M.union (adtKind <$> builtInADTs)
-  topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems builtInADTs)
+includeBuiltIns = typeScope %= M.union builtInTyCons
 
 -- | Typechecks a module.
 checkModule :: Module -> TC SaltErrCtx ()
 checkModule saltMod = do
+  includeBuiltIns
   -- check kinds of ADT definitions
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
   mapM_ checkADT (saltMod^.modADTs)
   -- derive Data instances
-  dataScope %= M.union builtInDataInstances
   deriveDataInstances (saltMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)

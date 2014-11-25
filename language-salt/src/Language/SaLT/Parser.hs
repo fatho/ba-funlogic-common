@@ -12,6 +12,7 @@ import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
+import qualified Data.Monoid
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -49,6 +50,9 @@ instance FileParsing SaltParser where
 
 parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
 parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
+
+parseSaltString :: String -> String -> Result [Decl]
+parseSaltString name = parseString (runSaltParser name program) Data.Monoid.mempty
 
 parseSaltTest :: (MonadIO m, Show a) => SaltParser a -> String -> m ()
 parseSaltTest p xs = do

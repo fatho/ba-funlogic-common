@@ -4,20 +4,7 @@ data Foo a b c
 
 data Bar a b = Bar (Set a) (Set b)
 
-data Maybe a = Just a | Nothing
-
-data Either a b = Left a | Right b
-
 data Phantom a = Phantom
-
-const :: forall a b.a -> b -> a
-const = \c :: a ->
-        \x :: b -> c
-
-not :: Bool -> Bool
-not = \x :: Bool -> case x of
-              True -> False
-              False -> True
 
 not2 :: Bool -> Bool
 not2 = \x :: Bool -> case case x of { True -> False
@@ -28,18 +15,6 @@ not2 = \x :: Bool -> case case x of { True -> False
 tMap :: forall a b.(a -> b) -> (a,a) -> (b,b)
 tMap = \f :: (a->b) ->
        \x :: Pair a a -> case x of Pair a b -> Pair<:b,b:> (f a) (f b)
-
-sMap :: forall a b.(a -> b) -> Set a -> Set b
-sMap = \f :: (a -> b) ->
-       \xs :: Set a -> xs >>= \x :: a -> {f x}
-
-filter :: forall a.(a -> Bool) -> [a] -> [a]
-filter = \f :: (a -> Bool) ->
-         \x :: [a] -> case x of
-           Nil -> Nil<:a:>
-           Cons y ys -> case f y of
-             True -> Cons<:a:> y (filter<:a:> f ys)
-             False -> filter<:a:> f ys
 
 foo :: Pair Nat Nat
 foo = tMap<:Nat,Nat:> (\x :: Nat -> x + 1) (Pair<:Nat,Nat:> 1 3)

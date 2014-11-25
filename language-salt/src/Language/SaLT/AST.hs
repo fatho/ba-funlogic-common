@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies    #-}
@@ -14,6 +15,8 @@ module Language.SaLT.AST
   ) where
 
 import           Control.Applicative
+import           Data.Typeable
+import           Data.Data
 
 import           FunLogic.Core.AST
 
@@ -24,12 +27,12 @@ data Binding = Binding
   , _bindingExpr :: Exp
   , _bindingType :: TyDecl
   , _bindingSrc  :: SrcRef
-  } deriving (Show)
+  } deriving (Show, Typeable, Data)
 
 data Decl
   = DTop Binding
   | DData ADT
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 
 data Exp
   = EVar Name
@@ -43,7 +46,7 @@ data Exp
   | ECase Exp [Alt]
   | EFailed Type
   | EUnknown Type
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 
 instance HasPrecedence Exp where
   prec = \case
@@ -72,11 +75,11 @@ data PrimOp
   = PrimAdd
   | PrimEq
   | PrimBind
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data Alt
   = Alt Pat Exp
-  deriving (Show)
+  deriving (Show, Typeable, Data)
 
 -- Lenses
 

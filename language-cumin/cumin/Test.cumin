@@ -1,20 +1,5 @@
-not :: Bool -> Bool
-not x = case x of
-  True -> False
-  False -> True
-
-id :: forall a.a -> a
-id x = x
-
 tMap :: forall a b.(a -> b) -> Pair a a -> Pair b b
 tMap f x = case x of Pair a b -> Pair<:b,b:> (f a) (f b)
-
-filter :: forall a.(a -> Bool) -> [a] -> [a]
-filter f x = case x of
-  Nil -> Nil<:a:>
-  Cons y ys -> case f y of
-    True -> Cons<:a:> y (filter<:a:> f ys)
-    False -> filter<:a:> f ys
 
 inc :: Nat -> Nat
 inc x = x + 1

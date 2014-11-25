@@ -55,12 +55,12 @@ data ConDecl
 
 data Lit
   = LNat Integer
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 data Pat
   = PCon Name [Name]
   | PVar Name
-  deriving (Show)
+  deriving (Show, Data, Typeable)
 
 -- | Example: `forall a.Data a => (a,a)`
 --   --> `TyDecl [RName "a"] [TyConstraint "Data" (RName "a")] (TCon "Pair" [(RName "a"), (RName "a")])`
@@ -91,22 +91,6 @@ pattern TNat     = TCon "Nat" []
 pattern TTup x y = TCon "Pair" [x, y]
 pattern TList x  = TCon "List" [x]
 
--- * Predefined ADTs
-
-adtDefBool :: ADT
-adtDefBool = ADT "Bool" []
-  [ ConDecl "False" []
-  , ConDecl "True" []
-  ] srcBuiltIn
-adtDefList :: ADT
-adtDefList = ADT "List" ["a"]
-  [ ConDecl "Nil" []
-  , ConDecl "Cons" [TVar "a", TCon "List" [TVar "a"]]
-  ] srcBuiltIn
-adtDefPair :: ADT
-adtDefPair = ADT "Pair" ["a", "b"]
-  [ ConDecl "Pair" [TVar "a", TVar "b"]
-  ] srcBuiltIn
 
 -- * Precedence Handling (when to use parentheses in pretty-printer)
 

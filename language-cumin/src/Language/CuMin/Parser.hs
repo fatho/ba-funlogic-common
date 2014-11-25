@@ -12,6 +12,7 @@ import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
+import qualified Data.Monoid
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -49,6 +50,9 @@ instance FileParsing CuMinParser where
 
 parseCuMinFileTest :: (MonadIO m) => FilePath -> m ()
 parseCuMinFileTest file = parseFromFile (runCuMinParser file program) file >>= liftIO . print
+
+parseCuMinString :: String -> String -> Result [Decl]
+parseCuMinString name = parseString (runCuMinParser name program) Data.Monoid.mempty
 
 parseCuMinTest :: (MonadIO m, Show a) => CuMinParser a -> String -> m ()
 parseCuMinTest p xs = do

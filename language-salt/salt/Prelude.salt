@@ -1,0 +1,47 @@
+data Pair a b = Pair a b
+
+data List a = Nil | Cons a (List a)
+
+data Maybe a = Nothing | Just a
+
+data Either a b = Left a | Right b
+
+data Bool = True | False
+
+id :: forall a. a -> a
+id = \x :: a -> x
+
+const :: forall a b.a -> b -> a
+const = \c :: a ->
+        \x :: b -> c
+
+fst :: forall a b. (a, b) -> a
+fst = \p :: (a,b) -> case p of
+  Pair x y -> x
+
+snd :: forall a b. (a, b) -> b
+snd = \p :: (a,b) -> case p of
+  Pair x y -> y
+
+not :: Bool -> Bool
+not = \x :: Bool -> case x of
+              True -> False
+              False -> True
+
+sMap :: forall a b. (a -> b) -> Set a -> Set b
+sMap = \f :: (a -> b) ->
+       \xs :: Set a -> xs >>= \x :: a -> {f x}
+
+map :: forall a b. (a -> b) -> [a] -> [b]
+map = \f :: (a -> b) ->
+      \xs :: [a] -> case xs of
+        Nil -> Nil<:b:>
+        Cons y ys -> Cons<:b:> (f y) (map<:a,b:> f ys)
+
+filter :: forall a. (a -> Bool) -> [a] -> [a]
+filter = \f :: (a -> Bool) ->
+         \x :: [a] -> case x of
+           Nil -> Nil<:a:>
+           Cons y ys -> case f y of
+             True -> Cons<:a:> y (filter<:a:> f ys)
+             False -> filter<:a:> f ys

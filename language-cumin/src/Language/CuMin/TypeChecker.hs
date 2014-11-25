@@ -11,16 +11,12 @@ module Language.CuMin.TypeChecker where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad                hiding (mapM, mapM_)
-import           Control.Monad.Error          hiding (mapM, mapM_)
 import           Control.Monad.Reader         hiding (mapM, mapM_)
 import           Control.Monad.RWS            hiding (mapM, mapM_)
-import           Control.Monad.State          hiding (mapM, mapM_)
 import           Data.Default.Class
 import           Data.Foldable
-import qualified Data.HashSet                 as HS
-import           Data.List (elemIndices)
+import           Data.List                    (elemIndices)
 import qualified Data.Map                     as M
-import qualified Data.Set                     as S
 import           Data.Traversable
 import           Prelude                      hiding (any, foldr, mapM, mapM_)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -38,17 +34,6 @@ builtInTyCons = M.fromList
   [ ("Nat", Kind 0)
   , ("->", Kind 2)
   ]
-
-builtInADTs :: M.Map Name ADT
-builtInADTs = M.fromList $ map (\adt -> (adt^.adtName, adt)) [adtDefBool, adtDefList, adtDefPair]
-
-builtInDataInstances :: M.Map Name (S.Set Int)
-builtInDataInstances = M.fromList
-  [ ("Nat", S.empty)
-  , ("Bool", S.empty)
-  , ("List", S.fromList [0])
-  , ("Pair", S.fromList [0,1])
- ]
 
 -- * Error Types
 
@@ -70,24 +55,21 @@ makeLenses ''CuMinErrCtx
 -- * Type Checking
 
 includeBuiltIns :: TC CuMinErrCtx ()
-includeBuiltIns = do
-  typeScope %= M.union builtInTyCons
-  typeScope %= M.union (adtKind <$> builtInADTs)
-  topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems builtInADTs)
+includeBuiltIns = typeScope %= M.union builtInTyCons
 
 -- | Typechecks a module.
 checkModule :: Module -> TC CuMinErrCtx ()
-checkModule saltMod = do
+checkModule cuminMod = do
+  includeBuiltIns
   -- check kinds of ADT definitions
-  typeScope %= M.union (adtKind <$> saltMod^.modADTs)
-  mapM_ checkADT (saltMod^.modADTs)
+  typeScope %= M.union (adtKind <$> cuminMod^.modADTs)
+  mapM_ checkADT (cuminMod^.modADTs)
   -- derive Data instances
-  dataScope %= M.union builtInDataInstances
-  deriveDataInstances (saltMod^.modADTs)
+  deriveDataInstances (cuminMod^.modADTs)
   -- check all top level bindings
-  topScope %= M.union (view bindingType <$> saltMod^.modBinds)
-  topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)
-  mapM_ checkBinding (saltMod^.modBinds)
+  topScope %= M.union (view bindingType <$> cuminMod^.modBinds)
+  topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
+  mapM_ checkBinding (cuminMod^.modBinds)
 
 -- | Typechecks a single top level binding
 checkBinding :: Binding -> TC CuMinErrCtx ()
