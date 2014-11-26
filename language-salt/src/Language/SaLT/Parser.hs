@@ -48,6 +48,9 @@ runSaltParser name p = evalIndentationParserT
 instance FileParsing SaltParser where
   fileName = use inputName
 
+instance RunnableParsing SaltParser where
+  runParser name content parser = runParser name content $ runSaltParser name parser
+
 parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
 parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
 
@@ -78,12 +81,15 @@ dataDecl :: SaltParser Decl
 dataDecl = localIndentation Gt $ DData <$> adtParser
 
 topLevelDecl :: SaltParser Decl
-topLevelDecl =
-    captureSrcRef $ do
-      (name, ty)    <- absoluteIndentation topLevelType
-      (name', body) <- absoluteIndentation topLevelBody
-      unless (name' == name) (fail "type declaration does not match body declaration")
-      return $ DTop . Binding name body ty
+topLevelDecl = DTop <$> binding
+
+binding :: SaltParser Binding
+binding = captureSrcRef $
+  do
+    (name, ty)    <- absoluteIndentation topLevelType
+    (name', body) <- absoluteIndentation topLevelBody
+    unless (name' == name) (fail "type declaration does not match body declaration")
+    return $ Binding name body ty
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression

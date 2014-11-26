@@ -48,6 +48,9 @@ runCuMinParser name p = evalIndentationParserT
 instance FileParsing CuMinParser where
   fileName = use inputName
 
+instance RunnableParsing CuMinParser where
+  runParser name content parser = runParser name content $ runCuMinParser name parser
+
 parseCuMinFileTest :: (MonadIO m) => FilePath -> m ()
 parseCuMinFileTest file = parseFromFile (runCuMinParser file program) file >>= liftIO . print
 
@@ -78,12 +81,15 @@ dataDecl :: CuMinParser Decl
 dataDecl = localIndentation Gt $ DData <$> adtParser
 
 topLevelDecl :: CuMinParser Decl
-topLevelDecl =
+topLevelDecl = DTop <$> binding
+
+binding :: CuMinParser Binding
+binding =
     captureSrcRef $ do
       (name, ty)    <- absoluteIndentation topLevelType
       (name':args, body) <- absoluteIndentation topLevelBody
       unless (name' == name) (fail "type declaration does not match body declaration")
-      return $ DTop . Binding name args body ty
+      return $ Binding name args body ty
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> some varIdent <* symbol "=" <*> expression

@@ -1,10 +1,17 @@
-{-# LANGUAGE ConstraintKinds #-}
+
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 module FunLogic.Core.Parser where
 
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad
+import           Control.Monad.State         (lift)
+import           Data.ByteString.Char8       as BS
 import qualified Data.HashSet                as HS
+import           Data.String
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
 import           Text.Trifecta.Delta
@@ -12,10 +19,50 @@ import           Text.Trifecta.Indentation
 
 import           FunLogic.Core.AST
 
-type MonadicParsing m = (FileParsing m, IndentationParsing m, DeltaParsing m, TokenParsing m, CharParsing m, Parsing m)
+type MonadicParsing m =
+  ( RunnableParsing m
+  , FileParsing m
+  , IndentationParsing m
+  , DeltaParsing m
+  , TokenParsing m
+  , CharParsing m
+  , Parsing m
+  )
 
 class Parsing m => FileParsing m where
   fileName :: m String
+
+class Parsing m => RunnableParsing m where
+  runParser :: String -> String -> m a -> Result a
+
+instance FileParsing Parser where
+  fileName = position >>= \case
+    Directed bs _ _ _ _ -> return $ BS.unpack bs
+    _ -> return "(interactive)"
+
+instance RunnableParsing Parser where
+  runParser name content p = parseString p del content
+    where
+    del = Directed (fromString name) 0 0 0 0
+
+newtype IndentParser a = IndentParser { runIndentParser :: (IndentationParserT Char Parser) a }
+  deriving ( Functor, Applicative, Alternative, Monad, MonadPlus)
+
+deriving instance Parsing IndentParser
+deriving instance CharParsing IndentParser
+deriving instance DeltaParsing IndentParser
+deriving instance IndentationParsing IndentParser
+
+instance TokenParsing IndentParser where
+  someSpace = IndentParser $ lift skipComments
+
+instance RunnableParsing IndentParser where
+  runParser name content p = runParser name content $
+    evalIndentationParserT (runIndentParser p)
+    (mkIndentationState 0 infIndentation False Gt)
+
+instance FileParsing IndentParser where
+  fileName = IndentParser $ lift fileName
 
 adtParser :: MonadicParsing m => m ADT
 adtParser = localIndentation Gt $ do
@@ -72,7 +119,7 @@ reserved = reserve varStyle
 
 -- * Type Parsing
 
-functionType ::MonadicParsing m =>  m Type
+functionType :: MonadicParsing m => m Type
 functionType = chainr1 complexType (TFun <$ symbol "->")
 
 complexType :: MonadicParsing m => m Type

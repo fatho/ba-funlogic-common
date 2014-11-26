@@ -1,28 +1,29 @@
 module Language.CuMin.TH where
 
-import           Control.Monad.State       (liftIO)
+import           Control.Applicative
+import           Control.Monad
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
-import           Text.Trifecta.Result
+import           Text.Trifecta
+import           Text.Trifecta.Indentation
 
+import           FunLogic.Core.TH
 import           Language.CuMin.Parser
 
-parseCuMinFileQ :: String -> FilePath -> Q Exp
-parseCuMinFileQ name file = do
-  content <- runIO $ liftIO $ readFile file
-  parseCuMinExQ name content
-
-parseCuMinExQ :: String -> String -> Q Exp
-parseCuMinExQ name content =
-  case parseCuMinString name content of
-    Success decls -> dataToExpQ (const Nothing) decls
-    Failure msg -> fail $ "Parsing quasi quote failed:\n`" ++ show msg ++ "`\nQuasi-quoted code:\n`" ++ content ++ "`\n"
-
-parseCuMinQ :: String -> Q Exp
-parseCuMinQ = parseCuMinExQ "<quasi-quoted>"
+parseCuMinFileDeclsQ :: String -> FilePath -> Q Exp
+parseCuMinFileDeclsQ name = runParserOnFileQ program name >=> dataToExp
 
 parseCuMinPrelude :: Q Exp
-parseCuMinPrelude = parseCuMinFileQ "<prelude>" "cumin/Prelude.cumin"
+parseCuMinPrelude = runParserOnFileQ program "<prelude>" "cumin/Prelude.cumin" >>= dataToExp
 
-cumin :: QuasiQuoter
-cumin = QuasiQuoter parseCuMinQ undefined undefined undefined
+cuminDecls :: QuasiQuoter
+cuminDecls = parserToQQ program
+
+cuminExp :: QuasiQuoter
+cuminExp = parserToQQ (whiteSpace *> expression <* whiteSpace <* eof)
+
+cuminPat :: QuasiQuoter
+cuminPat = parserToQQ (whiteSpace *> patternP <* whiteSpace <* eof)
+
+cuminBinding :: QuasiQuoter
+cuminBinding = parserToQQ . absoluteIndentation $ whiteSpace *> binding <* eof

@@ -1,28 +1,29 @@
 module Language.SaLT.TH where
 
-import           Control.Monad.State       (liftIO)
+import           Control.Applicative
+import           Control.Monad
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
-import           Text.Trifecta.Result
+import           Text.Trifecta
+import           Text.Trifecta.Indentation
 
+import           FunLogic.Core.TH
 import           Language.SaLT.Parser
 
-parseSaltFileQ :: String -> FilePath -> Q Exp
-parseSaltFileQ name file = do
-  content <- runIO $ liftIO $ readFile file
-  parseSaltExQ name content
-
-parseSaltExQ :: String -> String -> Q Exp
-parseSaltExQ name content =
-  case parseSaltString name content of
-    Success decls -> dataToExpQ (const Nothing) decls
-    Failure msg -> fail $ "Parsing quasi quote failed:\n`" ++ show msg ++ "`\nQuasi-quoted code:\n`" ++ content ++ "`\n"
-
-parseSaltQ :: String -> Q Exp
-parseSaltQ = parseSaltExQ "<quasi-quoted>"
+parseSaltFileDeclsQ :: String -> FilePath -> Q Exp
+parseSaltFileDeclsQ name = runParserOnFileQ program name >=> dataToExp
 
 parseSaltPrelude :: Q Exp
-parseSaltPrelude = parseSaltFileQ "<prelude>" "salt/Prelude.salt"
+parseSaltPrelude = runParserOnFileQ program "<prelude>" "salt/Prelude.salt" >>= dataToExp
 
-salt :: QuasiQuoter
-salt = QuasiQuoter parseSaltQ undefined undefined undefined
+saltDecls :: QuasiQuoter
+saltDecls = parserToQQ program
+
+saltExp :: QuasiQuoter
+saltExp = parserToQQ (whiteSpace *> expression <* whiteSpace <* eof)
+
+saltPat :: QuasiQuoter
+saltPat = parserToQQ (whiteSpace *> patternP <* whiteSpace <* eof)
+
+saltBinding :: QuasiQuoter
+saltBinding = parserToQQ . absoluteIndentation $ whiteSpace *> binding <* eof

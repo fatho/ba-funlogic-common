@@ -19,7 +19,7 @@ data CoreModule b = CoreModule
   { _modName  :: Name
   , _modBinds :: M.Map Name b
   , _modADTs  :: M.Map Name ADT
-  } deriving (Show)
+  } deriving (Show, Data, Typeable)
 
 class IsBinding b where
   type BindingExp b :: *
