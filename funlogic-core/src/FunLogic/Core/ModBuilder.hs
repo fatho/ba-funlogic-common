@@ -50,7 +50,7 @@ importUnqualified :: CoreModule b -> CoreModule b -> Either (M.Map Name ADT, M.M
 importUnqualified mod importMod
     | M.null commonBindings && M.null commonADTs = Right $
       mod & modBinds %~ M.union (view modBinds importMod)
-          & modBinds %~ M.union (view modBinds importMod)
+          & modADTs  %~ M.union (view modADTs importMod)
     | otherwise = Left (commonADTs, commonBindings)
   where
     commonBindings = (M.intersection `on` view modBinds) mod importMod
