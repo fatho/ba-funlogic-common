@@ -1,24 +1,21 @@
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE RecordWildCards     #-}
 module FunLogic.Core.ModBuilder where
 
 import           Control.Applicative
-import           Control.Lens        hiding (noneOf)
+import           Control.Lens                 hiding (noneOf)
 import           Control.Monad.State
-import qualified Data.Map            as M
+import           Data.Function
+import qualified Data.Map                     as M
 import           Data.Monoid
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<>), (<$>))
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 import           FunLogic.Core.AST
 
 -- | Builds a module from a list of declarations.
 buildModule :: IsBinding b => String -> [ADT] -> [b] -> Either Doc (CoreModule b)
-buildModule name adts bindings = fst <$> execStateT (mapM_ collectADT adts >> mapM_ collectBinding bindings) (emptyModule, M.empty) where
-  emptyModule = CoreModule
-    { _modName = name
-    , _modBinds = M.empty
-    , _modADTs = M.empty
-    }
+buildModule name adts bindings = fst <$> execStateT (mapM_ collectADT adts >> mapM_ collectBinding bindings) (emptyModule name, M.empty) where
   collectBinding binding = let topName = binding^.bindingName
       in use (_1.modBinds.at topName) >>= \case
         Just other -> lift $ Left $ text "top-level `" <> dullyellow (text topName)
@@ -39,3 +36,20 @@ buildModule name adts bindings = fst <$> execStateT (mapM_ collectADT adts >> ma
             , text ", previously defined in `", dullyellow $ text $ other^.adtName
             , text "` at ", dullyellow $ text $ other^.adtSrcRef.to show]
           Nothing -> _2.at n .= Just adt
+
+emptyModule :: String -> CoreModule b
+emptyModule name = CoreModule
+  { _modName = name
+  , _modBinds = M.empty
+  , _modADTs = M.empty
+  }
+
+-- | Merges the second argument into the first one, if the names of bindings and data types are disjoint.
+importUnqualified :: CoreModule b -> CoreModule b -> Maybe (CoreModule b)
+importUnqualified mod importMod =
+  [ mod & modBinds %~ M.union (view modBinds importMod)
+        & modBinds %~ M.union (view modBinds importMod)
+        | M.null commonBindings, M.null commonADTs
+  ] where
+    commonBindings = (M.intersection `on` view modBinds) mod importMod
+    commonADTs     = (M.intersection `on` view modADTs)  mod importMod

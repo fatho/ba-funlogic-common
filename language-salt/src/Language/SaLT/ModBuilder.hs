@@ -14,13 +14,13 @@ import           Language.SaLT.Parser
 import           Language.SaLT.Prelude
 import           Language.SaLT.TH
 
-buildSaltModuleFromFile :: MonadIO m => String -> m (Either Doc Module)
-buildSaltModuleFromFile saltFile = parseSaltFileEx saltFile >>= \case
+buildModuleFromFile :: MonadIO m => String -> m (Either Doc Module)
+buildModuleFromFile saltFile = parseSaltFileEx saltFile >>= \case
     Failure msg -> return $ Left msg
-    Success decls -> return $ buildSaltModuleFromDecls decls
+    Success decls -> return $ buildModuleFromDecls decls
 
-buildSaltModuleFromDecls :: [Decl] -> Either Doc Module
-buildSaltModuleFromDecls decls =
+buildModuleFromDecls :: [Decl] -> Either Doc Module
+buildModuleFromDecls decls =
   let
     adts = preludeADTs ++ [adt | DData adt <- decls]
     bnds = preludeBindings ++ [bnd | DTop bnd <- decls]
@@ -29,7 +29,7 @@ buildSaltModuleFromDecls decls =
 -- This cannot go into TH.hs because of cyclic module dependencies.
 saltModule :: QuasiQuoter
 saltModule = makeQQ dataToExp $ \str ->
-  (buildSaltModuleFromDecls <$> runParserQ program "<quasi-quoted module>" str)
+  (buildModuleFromDecls <$> runParserQ program "<quasi-quoted module>" str)
   >>= check
   where
     check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"

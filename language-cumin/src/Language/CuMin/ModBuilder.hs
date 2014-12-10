@@ -14,13 +14,13 @@ import           Language.CuMin.Parser
 import           Language.CuMin.Prelude
 import           Language.CuMin.TH
 
-buildCuMinModuleFromFile :: MonadIO m => String -> m (Either Doc Module)
-buildCuMinModuleFromFile cuminFile = parseCuMinFileEx cuminFile >>= \case
+buildModuleFromFile :: MonadIO m => String -> m (Either Doc Module)
+buildModuleFromFile cuminFile = parseCuMinFileEx cuminFile >>= \case
     Failure msg -> return $ Left msg
-    Success decls -> return $ buildCuMinModuleFromDecls decls
+    Success decls -> return $ buildModuleFromDecls decls
 
-buildCuMinModuleFromDecls :: [Decl] -> Either Doc Module
-buildCuMinModuleFromDecls decls =
+buildModuleFromDecls :: [Decl] -> Either Doc Module
+buildModuleFromDecls decls =
   let
     adts = preludeADTs ++ [adt | DData adt <- decls]
     bnds = preludeBindings ++ [bnd | DTop bnd <- decls]
@@ -29,7 +29,7 @@ buildCuMinModuleFromDecls decls =
 -- This cannot go into TH.hs because of cyclic module dependencies.
 cuminModule :: QuasiQuoter
 cuminModule = makeQQ dataToExp $ \str ->
-  (buildCuMinModuleFromDecls <$> runParserQ program "<quasi-quoted module>" str)
+  (buildModuleFromDecls <$> runParserQ program "<quasi-quoted module>" str)
   >>= check
   where
     check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"

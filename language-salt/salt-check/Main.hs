@@ -19,7 +19,7 @@ main = do
 checkFile :: FilePath -> WriterT Doc IO ()
 checkFile saltFile = do
   tell $ dullyellow (text "Checking " <> text saltFile) <> text "..." <> line
-  buildSaltModuleFromFile saltFile >>= \case
+  buildModuleFromFile saltFile >>= \case
     Left msg    -> tell msg
     Right modul -> case evalTC (checkModule modul) def def of
       Left msg -> tell $ prettyErr msg <> line
