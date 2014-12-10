@@ -45,11 +45,13 @@ emptyModule name = CoreModule
   }
 
 -- | Merges the second argument into the first one, if the names of bindings and data types are disjoint.
-importUnqualified :: CoreModule b -> CoreModule b -> Maybe (CoreModule b)
-importUnqualified mod importMod =
-  [ mod & modBinds %~ M.union (view modBinds importMod)
-        & modBinds %~ M.union (view modBinds importMod)
-        | M.null commonBindings, M.null commonADTs
-  ] where
+-- Returns either the ambigous data types and bindings or a new merged module.
+importUnqualified :: CoreModule b -> CoreModule b -> Either (M.Map Name ADT, M.Map Name b) (CoreModule b)
+importUnqualified mod importMod
+    | M.null commonBindings && M.null commonADTs = Right $
+      mod & modBinds %~ M.union (view modBinds importMod)
+          & modBinds %~ M.union (view modBinds importMod)
+    | otherwise = Left (commonADTs, commonBindings)
+  where
     commonBindings = (M.intersection `on` view modBinds) mod importMod
     commonADTs     = (M.intersection `on` view modADTs)  mod importMod
