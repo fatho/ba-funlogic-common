@@ -78,7 +78,7 @@ adtParser = localIndentation Gt $ do
 
 -- * Indentifiers
 
-varStyle :: MonadicParsing m => IdentifierStyle m
+varStyle :: CharParsing m => IdentifierStyle m
 varStyle = IdentifierStyle
             { _styleName      = "identifier"
             , _styleStart     = lower
@@ -92,7 +92,7 @@ varStyle = IdentifierStyle
             , _styleReservedHighlight = H.ReservedIdentifier
             }
 
-conStyle :: MonadicParsing m => IdentifierStyle m
+conStyle :: CharParsing m => IdentifierStyle m
 conStyle = IdentifierStyle
             { _styleName      = "constructor"
             , _styleStart     = upper
@@ -102,33 +102,33 @@ conStyle = IdentifierStyle
             , _styleReservedHighlight = H.ReservedConstructor
             }
 
-conIdent :: MonadicParsing m => m Name
+conIdent :: (TokenParsing m, Monad m) => m Name
 conIdent = ident conStyle
 
-reservedCon :: MonadicParsing m => String -> m ()
+reservedCon :: (TokenParsing m, Monad m) => String -> m ()
 reservedCon = reserve conStyle
 
-varIdent :: MonadicParsing m => m Name
+varIdent :: (TokenParsing m, Monad m) => m Name
 varIdent = ident varStyle
 
-tyVarIdent :: MonadicParsing m => m TVName
+tyVarIdent :: (TokenParsing m, Monad m) => m TVName
 tyVarIdent = ident varStyle
 
-reserved :: MonadicParsing m => String -> m ()
+reserved :: (TokenParsing m, Monad m) => String -> m ()
 reserved = reserve varStyle
 
 -- * Type Parsing
 
-functionType :: MonadicParsing m => m Type
+functionType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 functionType = chainr1 complexType (TFun <$ symbol "->")
 
-complexType :: MonadicParsing m => m Type
+complexType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 complexType = choice
   [ TCon <$> conIdent <*> try (many simpleType)
   , try simpleType
   ]
 
-simpleType :: MonadicParsing m => m Type
+simpleType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 simpleType = choice
     [ TVar <$> tyVarIdent
     , TCon <$> conIdent <*> pure []
@@ -137,7 +137,7 @@ simpleType = choice
     , parens (localIndentation Any functionType)
     ]
 
-typeDecl :: MonadicParsing m => m TyDecl
+typeDecl :: (TokenParsing m, Monad m, IndentationParsing m) => m TyDecl
 typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> functionType where
   forallVars = reserved "forall" *> many tyVarIdent <* symbol "."
   context    = ( parens (commaSep constraint)
