@@ -12,6 +12,7 @@ import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
+import           Data.List                   (intercalate, nub, (\\))
 import qualified Data.Monoid
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
@@ -87,12 +88,21 @@ binding :: CuMinParser Binding
 binding =
     captureSrcRef $ do
       (name, ty)    <- absoluteIndentation topLevelType
-      (name':args, body) <- absoluteIndentation topLevelBody
-      unless (name' == name) (fail "type declaration does not match body declaration")
+      (args, body) <- absoluteIndentation (topLevelBody name)
       return $ Binding name args body ty
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
-    topLevelBody = (,) <$> some varIdent <* symbol "=" <*> expression
+    topLevelBody name = do
+      name' <- varIdent
+      unless (name == name') $ fail "type declaration does not match body declaration"
+      args <- many varIdent
+      unless (nub args == args) $ fail $
+              "The variable(s) "
+              ++ intercalate ", " (map (\v -> "`" ++ v ++ "`") (args \\ nub args))
+              ++ " occur(s) more than once on the left hand side of a binding"
+      _ <- symbol "="
+      expr <- expression
+      return (args, expr)
 
 -- * Expression Parsing
 
