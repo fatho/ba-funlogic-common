@@ -211,6 +211,14 @@ instantiate tyArgs decl@(TyDecl tyVars _ ty) = do
 
 -- * Type Checking
 
+-- | Extends the scope with all definitions contained in the module, but does not check them.
+-- Only use this function if you know that the module that is passed to it has been type-checked previously.
+unsafeIncludeModule :: (Default e, IsBinding b) => CoreModule b -> TC e ()
+unsafeIncludeModule cuminMod = do
+  typeScope %= M.union (adtKind <$> cuminMod^.modADTs)
+  topScope  %= M.union (view bindingType <$> cuminMod^.modBinds)
+  topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
+
 -- | Typechecks an ADT
 checkADT :: Default e => ADT -> TC e ()
 checkADT adt = local (errContext.errSrc .~ Just (adt^.adtSrcRef))
