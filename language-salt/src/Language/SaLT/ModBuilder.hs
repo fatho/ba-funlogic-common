@@ -1,5 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
-module Language.SaLT.ModBuilder where
+module Language.SaLT.ModBuilder
+  ( buildModuleFromFile
+  , buildModuleFromDecls
+  , saltModule
+  , module FunLogic.Core.ModBuilder
+  ) where
 
 import           Control.Applicative
 import           Control.Monad.Writer
@@ -8,7 +13,6 @@ import           Text.PrettyPrint.ANSI.Leijen (Doc)
 import           Text.Trifecta.Result
 
 import           FunLogic.Core.ModBuilder
-import           FunLogic.Core.TH
 import           Language.SaLT.AST
 import           Language.SaLT.Parser
 import           Language.SaLT.Prelude

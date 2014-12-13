@@ -6,7 +6,23 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
-module Language.SaLT.Parser where
+module Language.SaLT.Parser
+  (
+  -- * simplified parser interface
+    parseSaltFile
+  , parseSaltFileEx
+  , parseSaltString
+  -- * raw parser interface
+  , runSaltParser
+  , program
+  , expression
+  , binding
+  , patternP
+  , decl
+  , dataDecl
+  , topLevelDecl
+  , module P
+  ) where
 
 import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
@@ -51,17 +67,8 @@ instance FileParsing SaltParser where
 instance RunnableParsing SaltParser where
   runParser name content parser = runParser name content $ runSaltParser name parser
 
-parseSaltFileTest :: (MonadIO m) => FilePath -> m ()
-parseSaltFileTest file = parseFromFile (runSaltParser file program) file >>= liftIO . print
-
 parseSaltString :: String -> String -> Result [Decl]
 parseSaltString name = parseString (runSaltParser name program) Data.Monoid.mempty
-
-parseSaltTest :: (MonadIO m, Show a) => SaltParser a -> String -> m ()
-parseSaltTest p xs = do
-  liftIO $ putStrLn xs
-  liftIO $ putStrLn "-----------------------------------"
-  parseTest (runSaltParser "<interactive>" p) xs
 
 parseSaltFile :: (MonadIO m) => FilePath -> m (Maybe [Decl])
 parseSaltFile file = parseFromFile (runSaltParser file program) file

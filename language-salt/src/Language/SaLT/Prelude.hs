@@ -13,14 +13,3 @@ preludeADTs = [adt | DData adt <- preludeDecls]
 
 preludeBindings :: [Binding]
 preludeBindings = [bnd | DTop bnd <- preludeDecls]
-
-test :: [Decl]
-test = [saltDecls|
-test :: forall a. a -> a
-test = \x :: a -> x
-
-foo :: Bool -> Bool
-foo = \b :: Bool -> case b of
-  True -> True
-  False -> False
-|]

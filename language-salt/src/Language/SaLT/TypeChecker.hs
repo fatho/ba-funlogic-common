@@ -6,7 +6,13 @@
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
-module Language.SaLT.TypeChecker where
+module Language.SaLT.TypeChecker
+  ( checkModule
+  , checkBinding
+  , checkExp
+  , checkAlt
+  , module FunLogic.Core.TypeChecker
+  ) where
 
 import           Control.Applicative
 import           Control.Lens

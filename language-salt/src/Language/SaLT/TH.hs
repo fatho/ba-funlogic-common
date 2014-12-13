@@ -1,5 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Language.SaLT.TH where
+module Language.SaLT.TH
+  ( saltDecls
+  , saltExp
+  , saltPat
+  , saltBinding
+  , parseSaltPrelude
+  , parseSaltFileDeclsQ
+  , dataToExp
+  , module FunLogic.Core.TH
+  ) where
 
 import           Control.Applicative
 import           Control.Monad
