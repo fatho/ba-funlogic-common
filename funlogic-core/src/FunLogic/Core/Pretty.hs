@@ -61,3 +61,7 @@ prettyTyConstraint (TyConstraint n v) = text n <+> text v
 -- | Renders the Doc with the given width and displays it.
 displayPretty :: Int -> Doc -> IO ()
 displayPretty wd = displayIO stdout . renderPretty 0.7 wd
+
+-- | Removes all color from the Doc
+removeFormatting :: Doc -> Doc
+removeFormatting = plain

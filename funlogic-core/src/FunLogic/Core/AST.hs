@@ -49,18 +49,24 @@ data ADT = ADT
   , _adtSrcRef :: SrcRef
   } deriving (Show, Data, Typeable)
 
+instance Eq ADT where
+  a1 == a2 =
+    _adtName a1 == _adtName a2 &&
+    _adtTyArgs a1 == _adtTyArgs a2 &&
+    _adtConstr a1 == _adtConstr a2
+
 data ConDecl
   = ConDecl Name [Type]
-  deriving (Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable)
 
 data Lit
   = LNat Integer
-  deriving (Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable)
 
 data Pat
   = PCon Name [Name]
   | PVar Name
-  deriving (Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable)
 
 -- | Example: `forall a.Data a => (a,a)`
 --   --> `TyDecl [RName "a"] [TyConstraint "Data" (RName "a")] (TCon "Pair" [(RName "a"), (RName "a")])`

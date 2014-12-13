@@ -41,3 +41,29 @@ library
                      , syb
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+test-suite core-test
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
+  hs-source-dirs:      core-test
+  main-is:             Spec.hs
+  other-modules:       FunLogic.Core.ParserSpec
+                       FunLogic.Core.PrettySpec
+                       FunLogic.Core.TypeCheckerSpec
+  build-depends:       base                 ==4.7.*
+                     , text                 ==1.1.*
+                     , trifecta             ==1.4.*
+                     , lens                 ==4.4.*
+                     , mtl                  ==2.1.*
+                     , containers           ==0.5.*
+                     , unordered-containers ==0.2.*
+                     , indentation          ==0.2.*
+                     , ansi-wl-pprint       ==0.6.*
+                     , directory            ==1.2.*
+                     , filepath             ==1.3.*
+                     , data-default-class
+                     , hspec                ==1.12.*
+                     , QuickCheck           ==2.7.*
+                     , funlogic-core
+  default-language:    Haskell2010
+
