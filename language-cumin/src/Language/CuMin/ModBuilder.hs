@@ -1,5 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
-module Language.CuMin.ModBuilder where
+module Language.CuMin.ModBuilder
+  ( buildModuleFromFile
+  , buildModuleFromDecls
+  , cuminModule
+  , module FunLogic.Core.ModBuilder
+  ) where
 
 import           Control.Applicative
 import           Control.Monad.Writer

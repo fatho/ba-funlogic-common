@@ -6,7 +6,17 @@
 {-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
-module Language.CuMin.TypeChecker where
+module Language.CuMin.TypeChecker
+  ( checkModule
+  , checkBinding
+  , checkExp
+  , checkAlt
+  , CuMinErrCtx (..)
+  , errExp
+  , builtInTyCons
+  , includeBuiltIns
+  , module FunLogic.Core.TypeChecker
+  ) where
 
 import           Control.Applicative
 import           Control.Lens
@@ -25,9 +35,7 @@ import           FunLogic.Core.TypeChecker
 import           Language.CuMin.AST
 import           Language.CuMin.Pretty
 
--- * Built-Int types
-
-pattern TSet x = TCon "Set" [x]
+-- * Built-In types
 
 builtInTyCons :: M.Map Name Kind
 builtInTyCons = M.fromList
@@ -145,15 +153,15 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
 
   go (ECase expr alts) = do
     expTy  <- checkExp expr
-    (aty:atys) <- mapM (tcAlt expTy) alts
+    (aty:atys) <- mapM (checkAlt expTy) alts
     case find (/=aty) atys of
       Nothing -> return aty
       Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
   go (EFailed ty) = return ty
 
-tcAlt :: Type -> Alt -> TC CuMinErrCtx Type
-tcAlt pty (Alt pat body) = case pat of
+checkAlt :: Type -> Alt -> TC CuMinErrCtx Type
+checkAlt pty (Alt pat body) = case pat of
   PVar v -> local (localScope.at v .~ Just pty) $ checkExp body
   PCon c vs -> case pty of
     TVar _        -> errorTC $ ErrGeneral $ text "cannot pattern match on unknown type"

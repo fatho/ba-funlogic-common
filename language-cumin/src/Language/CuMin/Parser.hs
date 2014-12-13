@@ -6,7 +6,23 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
-module Language.CuMin.Parser where
+module Language.CuMin.Parser
+  (
+  -- * simplified parser interface
+    parseCuMinFile
+  , parseCuMinFileEx
+  , parseCuMinString
+  -- * raw parser interface
+  , runCuMinParser
+  , program
+  , expression
+  , binding
+  , patternP
+  , decl
+  , dataDecl
+  , topLevelDecl
+  , module P
+  ) where
 
 import           Control.Applicative
 import           Control.Lens                hiding (noneOf)
@@ -52,17 +68,8 @@ instance FileParsing CuMinParser where
 instance RunnableParsing CuMinParser where
   runParser name content parser = runParser name content $ runCuMinParser name parser
 
-parseCuMinFileTest :: (MonadIO m) => FilePath -> m ()
-parseCuMinFileTest file = parseFromFile (runCuMinParser file program) file >>= liftIO . print
-
 parseCuMinString :: String -> String -> Result [Decl]
 parseCuMinString name = parseString (runCuMinParser name program) Data.Monoid.mempty
-
-parseCuMinTest :: (MonadIO m, Show a) => CuMinParser a -> String -> m ()
-parseCuMinTest p xs = do
-  liftIO $ putStrLn xs
-  liftIO $ putStrLn "-----------------------------------"
-  parseTest (runCuMinParser "<interactive>" p) xs
 
 parseCuMinFile :: (MonadIO m) => FilePath -> m (Maybe [Decl])
 parseCuMinFile file = parseFromFile (runCuMinParser file program) file

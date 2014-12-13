@@ -1,5 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Language.CuMin.TH where
+module Language.CuMin.TH
+  ( cuminDecls
+  , cuminExp
+  , cuminPat
+  , cuminBinding
+  , parseCuMinPrelude
+  , parseCuMinFileDeclsQ
+  , dataToExp
+  , module FunLogic.Core.TH
+  ) where
 
 import           Control.Applicative
 import           Control.Monad

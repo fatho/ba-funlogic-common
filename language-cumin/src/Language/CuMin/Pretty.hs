@@ -1,5 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
-module Language.CuMin.Pretty where
+module Language.CuMin.Pretty
+  ( prettyModule
+  , prettyBinding
+  , prettyExp
+  , prettyTypeInstantiations
+  , prettyAlt
+  , module FunLogic.Core.Pretty
+  ) where
 
 import           Control.Lens
 import qualified Data.Map                     as M
