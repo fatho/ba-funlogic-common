@@ -11,6 +11,10 @@ module Language.SaLT.TypeChecker
   , checkBinding
   , checkExp
   , checkAlt
+  , SaltErrCtx (..)
+  , errExp
+  , builtInTyCons
+  , includeBuiltIns
   , module FunLogic.Core.TypeChecker
   ) where
 
