@@ -256,28 +256,63 @@ checkForDataInstance ty@(TCon tyCon tys) =
 -- * Data deriving
 
 -- | Given ADTs, derives their data instances
-deriveDataInstances :: Default e => M.Map Name ADT -> TC e ()
-deriveDataInstances adts = do
-  dataScope %= M.union (const S.empty <$> adts)
+deriveDataInstances :: M.Map Name ADT -> M.Map Name (S.Set Int)
+deriveDataInstances adts = flip execState M.empty $ do
+  put $ const S.empty <$> adts
   fixpointIteration (itraverse_ addConstraints adts) -- iteratively tighten the constraints until fixpoint is reached
+
+-- | Add Data constraints for relevant type variables
+-- that can be determined by looking only one layer deep
+-- into the definition of the ADT.
+--
+-- When this function is iterated for all type constructors,
+-- it will eventually have determined all necessary constraints.
+-- When a fixpoint is reached, they are also sufficient.
+-- Such a fixpoint will be reached because the definition of an
+-- ADT and thus also the nesting level is finite.
+--
+-- EXAMPLE: Given the ADTs
+-- data Phantom a = Phantom
+-- data Rec1 a b = R1 a (Rec2 a b)
+-- data Rec2 a b = R2 b (Rec1 b a)
+--
+-- 1st iteration:
+-- Phantom: {} ("a" does not occur on RHS)
+-- Rec1: {0}, i.e. the 0th type var, i.e. {"a"}
+-- Rec2: {1}, i.e. {"b"}
+--
+-- 2nd iteration:
+-- Phantom: {} (unchanged)
+-- Rec1: {0,1}, i.e. {"a", "b"} ("b" has been added
+--   since it is required by Rec2 since iteration 1)
+-- Rec2: {1}, i.e. {"b"} ("Data b" is required by
+--   Rec1, but this does not change anything)
+--
+-- 3rd iteration:
+-- Phantom: {} (unchanged)
+-- Rec1: {0,1}, i.e. {"a", "b"} (unchanged)
+-- Rec2: {0, 1}, i.e. {"a", "b"} ("Data a" is required
+--   by Rec1 since iteration 2)
+--
+-- Afterwards: no more changes.
+addConstraints :: String -> ADT -> State (M.Map Name (S.Set Int)) ()
+addConstraints name adt = forM_ (adt^.adtConstr) $
+  \(ConDecl _ tys) -> mapM_ requireDataForType tys
   where
-    addConstraints name adt = forM_ (adt^.adtConstr) $
-      \(ConDecl _ tys) -> mapM_ requireDataForType tys
-      where
-        -- collect type vars directly
-        requireDataForType (TVar tv) =
-          let
-            tyVarIdx = fromMaybe (error
-              "Internal error in Salt type checker while deriving data instances: \
-              \type variable doesn't occur on the left-hand side of the definition.") $
-              tv `elemIndex` (adt^.adtTyArgs)
-          in dataScope.at name %= fmap (S.insert tyVarIdx) -- add Data constraint for this type variable
-        -- for type constructors, recursively check the types passed to the type constructor that require Data
-        requireDataForType (TCon tyCon tys) = do
-          tyConConstraints <- use (dataScope.at tyCon)
-          case tyConConstraints of
-            Just dataIndices -> traverse_ (requireDataForType . (tys !!)) dataIndices
-            Nothing -> dataScope.at name .= Nothing -- no Data instance allowed in this case
+    -- collect type vars directly
+    requireDataForType (TVar tv) =
+      let
+        tyVarIdx = fromMaybe (error
+          "Internal error in Salt type checker while deriving data instances: \
+          \type variable doesn't occur on the left-hand side of the definition.") $
+          tv `elemIndex` (adt^.adtTyArgs)
+      in at name %= fmap (S.insert tyVarIdx) -- add Data constraint for this type variable
+    -- for type constructors, recursively check the types passed to the type constructor that require Data
+    requireDataForType (TCon tyCon tys) = do
+      tyConConstraints <- use (at tyCon)
+      case tyConConstraints of
+        Just dataIndices -> traverse_ (requireDataForType . (tys !!)) dataIndices
+        Nothing -> at name .= Nothing -- no Data instance allowed in this case
 
 -- | Repeat the monadic action until the state does not change anymore.
 fixpointIteration :: (MonadState s m, Eq s) => m () -> m ()

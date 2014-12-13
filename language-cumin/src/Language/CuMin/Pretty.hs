@@ -27,7 +27,10 @@ prettyBinding b =
     text (b^.bindingName) </> text ":: " <> prettyTyDecl (b^.bindingType)
   ) <> line <>
   nest defaultIndent (
-    text (b^.bindingName) </> text "= " <> prettyExp (b^.bindingExpr)
+    text (b^.bindingName)
+    </> foldr ((</>) . text) empty (b^.bindingArgs)
+    <//> text "= "
+    <> prettyExp (b^.bindingExpr)
   )
 
 prettyExp :: Exp -> Doc

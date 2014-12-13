@@ -58,3 +58,20 @@ executable cumin-check
                      , language-cumin
                      , funlogic-core
   default-language:    Haskell2010
+
+executable cumin-pretty
+  main-is:             Main.hs
+  hs-source-dirs:      cumin-pretty
+  ghc-options:         -Wall
+  build-depends:       base                 ==4.7.*
+                     , text                 ==1.1.*
+                     , trifecta             ==1.4.*
+                     , lens                 ==4.4.*
+                     , mtl                  ==2.1.*
+                     , containers           ==0.5.*
+                     , unordered-containers ==0.2.*
+                     , ansi-wl-pprint       ==0.6.*
+                     , data-default-class
+                     , language-cumin
+                     , funlogic-core
+  default-language:    Haskell2010
