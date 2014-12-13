@@ -13,6 +13,7 @@ module Language.CuMin.Parser
   , parseCuMinFileEx
   , parseCuMinString
   -- * raw parser interface
+  , CuMinParser
   , runCuMinParser
   , program
   , expression

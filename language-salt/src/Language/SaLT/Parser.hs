@@ -13,6 +13,7 @@ module Language.SaLT.Parser
   , parseSaltFileEx
   , parseSaltString
   -- * raw parser interface
+  , SaltParser
   , runSaltParser
   , program
   , expression
