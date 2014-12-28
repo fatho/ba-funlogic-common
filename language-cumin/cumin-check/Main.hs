@@ -6,6 +6,7 @@ import           Data.Default.Class
 import           FunLogic.Core.TypeChecker
 import           Language.CuMin.ModBuilder
 import           Language.CuMin.TypeChecker
+import           Language.CuMin.Prelude
 
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 
@@ -21,6 +22,6 @@ checkFile cuminFile = do
   tell $ dullyellow (text "Checking " <> text cuminFile) <> text "..." <> line
   buildModuleFromFile cuminFile >>= \case
     Left msg    -> tell msg
-    Right modul -> case evalTC (checkModule modul) def def of
+    Right modul -> case evalTC (unsafeIncludeModule preludeModule >> checkModule modul) def def of
       Left msg -> tell $ prettyErr msg <> line
       Right () -> tell $ dullgreen $ text "Success!" <> line
