@@ -39,7 +39,7 @@ filter f x = case x of
     True -> Cons<:a:> y (filter<:a:> f ys)
     False -> filter<:a:> f ys
 
-choose :: a -> a -> a
+choose :: forall a.a -> a -> a
 choose x y = let choice :: Bool free
   in case choice of
     False -> x
