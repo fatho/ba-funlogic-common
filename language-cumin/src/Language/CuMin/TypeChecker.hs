@@ -27,6 +27,7 @@ import           Data.Default.Class
 import           Data.Foldable
 import           Data.List                    (elemIndices)
 import qualified Data.Map                     as M
+import qualified Data.Set                     as Set
 import           Data.Traversable
 import           Prelude                      hiding (any, foldr, mapM, mapM_)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -62,8 +63,11 @@ makeLenses ''CuMinErrCtx
 
 -- * Type Checking
 
+-- | Include built-in types which cannot be defined directly in CuMin.
 includeBuiltIns :: TC CuMinErrCtx ()
-includeBuiltIns = typeScope %= M.union builtInTyCons
+includeBuiltIns = do
+  typeScope %= M.union builtInTyCons
+  dataScope %= M.insert "Nat" Set.empty
 
 -- | Typechecks a module.
 checkModule :: Module -> TC CuMinErrCtx ()
