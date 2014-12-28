@@ -138,6 +138,7 @@ verySimpleExpr = choice
   , litE
   , listE
   , letE
+  , failE
   , parens expression
   ]
 
@@ -172,6 +173,9 @@ conE = ECon
 
 litE :: CuMinParser Exp
 litE = ELit . LNat <$> highlight H.Number natural
+
+failE :: CuMinParser Exp
+failE = reserved "failed" >> EFailed <$> annotBrackets functionType
 
 caseE :: CuMinParser Exp
 caseE = do
