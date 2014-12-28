@@ -2,7 +2,6 @@
 module Language.CuMin.ModBuilder
   ( buildModuleFromFile
   , buildModuleFromDecls
-  , cuminModule
   , module FunLogic.Core.ModBuilder
   ) where
 
@@ -12,8 +11,6 @@ import           FunLogic.Core.ModBuilder
 import           FunLogic.Core.TH
 import           Language.CuMin.AST
 import           Language.CuMin.Parser
-import           Language.CuMin.TH
-import           Language.Haskell.TH.Quote
 import           System.FilePath              (takeBaseName)
 import           Text.PrettyPrint.ANSI.Leijen (Doc)
 import           Text.Trifecta.Result
@@ -29,12 +26,3 @@ buildModuleFromDecls name decls =
     adts = [adt | DData adt <- decls]
     bnds = [bnd | DTop bnd <- decls]
   in buildModule name adts bnds
-
--- This cannot go into TH.hs because of cyclic module dependencies.
-cuminModule :: String -> QuasiQuoter
-cuminModule name = makeQQ dataToExp $ \str ->
-  (buildModuleFromDecls name <$> runParserQ program "<quasi-quoted module>" str)
-  >>= check
-  where
-    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"
-    check (Right m) = return m
