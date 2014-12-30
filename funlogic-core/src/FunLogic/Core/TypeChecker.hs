@@ -17,7 +17,7 @@ module FunLogic.Core.TypeChecker
   , Kind (..)
   , adtKind
   , TC
-  , evalTC
+  , evalTC, evalTC'
   -- * Type Checker Interface
   , assertTypesEq
   , instantiate, instantiate'
@@ -228,6 +228,10 @@ makeLenses ''TCState
 -- | Run a type checker action with a given initial state and environment.
 evalTC :: TC e a -> TCState -> TCEnv e -> Either (TCErr e) a
 evalTC action istate env = fst $ evalRWS (runErrorT (unwrapTC action)) env istate
+
+-- | Same as 'evalTC', but using default initial 'TCState' and 'TCEnv'.
+evalTC' :: Default e => TC e a -> Either (TCErr e) a
+evalTC' tcAction = evalTC tcAction def def
 
 -- * Error Handling
 
