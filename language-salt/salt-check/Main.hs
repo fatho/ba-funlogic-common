@@ -7,20 +7,20 @@ import           FunLogic.Core.TypeChecker
 import           Language.SaLT.ModBuilder
 import           Language.SaLT.TypeChecker
 
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<>))
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           System.Environment           (getArgs)
 
 main :: IO ()
 main = do
   (_, doc) <- runWriterT $ lift getArgs >>= mapM_ checkFile
-  putDoc doc
+  PP.putDoc doc
 
-checkFile :: FilePath -> WriterT Doc IO ()
+checkFile :: FilePath -> WriterT PP.Doc IO ()
 checkFile saltFile = do
-  tell $ dullyellow (text "Checking " <> text saltFile) <> text "..." <> line
+  tell $ PP.dullyellow (PP.text "Checking " <> PP.text saltFile) <> PP.text "..." <> PP.line
   buildModuleFromFile saltFile >>= \case
     Left msg    -> tell msg
     Right modul -> case evalTC (checkModule modul) def def of
-      Left msg -> tell $ prettyErr msg <> line
-      Right () -> tell $ dullgreen $ text "Success!" <> line
+      Left msg -> tell $ PP.pretty msg <> PP.line
+      Right () -> tell $ PP.dullgreen $ PP.text "Success!" <> PP.line

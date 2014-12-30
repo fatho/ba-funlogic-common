@@ -23,7 +23,7 @@ import           FunLogic.Core.AST
 type Module = CoreModule Binding
 
 data Binding = Binding
-  { _bindingName :: Name
+  { _bindingName :: BindingName
   , _bindingExpr :: Exp
   , _bindingType :: TyDecl
   , _bindingSrc  :: SrcRef
@@ -35,13 +35,13 @@ data Decl
   deriving (Show, Typeable, Data)
 
 data Exp
-  = EVar Name
-  | EFun Name [Type]
-  | ELam Name Type Exp
+  = EVar VarName
+  | EFun BindingName [Type]
+  | ELam VarName Type Exp
   | EApp Exp Exp
   | ELit Lit
   | EPrim PrimOp [Exp]
-  | ECon Name [Type]
+  | ECon DataConName [Type]
   | ESet Exp
   | ECase Exp [Alt]
   | EFailed Type

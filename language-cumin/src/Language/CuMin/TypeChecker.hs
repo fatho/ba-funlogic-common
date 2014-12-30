@@ -38,7 +38,7 @@ import           Language.CuMin.Pretty
 
 -- * Built-In types
 
-builtInTyCons :: M.Map Name Kind
+builtInTyCons :: M.Map TyConName Kind
 builtInTyCons = M.fromList
   [ ("Nat", Kind 0)
   , ("->", Kind 2)
@@ -94,7 +94,7 @@ checkBinding bnd = let (TyDecl tvars tconstraints ty) = bnd^.bindingType in
     realBodyTy <- local (localScope %~ M.union (M.fromList argTys)) $ checkExp $ bnd^.bindingExpr
     assertTypesEq realBodyTy bodyTy
 
-extractArgs :: [Name] -> Type -> TC CuMinErrCtx ([(Name,Type)], Type)
+extractArgs :: [VarName] -> Type -> TC CuMinErrCtx ([(VarName,Type)], Type)
 extractArgs [] ty             = return ([], ty)
 extractArgs (x:xs) (TFun a b) = over _1 ((x,a):) <$> extractArgs xs b
 extractArgs (_:_) _           = errorTC $ ErrGeneral $ text "too many arguments for function"

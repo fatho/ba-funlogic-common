@@ -7,21 +7,19 @@ import           FunLogic.Core.TypeChecker
 import           Language.CuMin.ModBuilder
 import           Language.CuMin.TypeChecker
 import           Language.CuMin.Prelude
-
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<>))
-
-import           System.Environment           (getArgs)
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
+import qualified System.Environment          as Env
 
 main :: IO ()
 main = do
-  (_, doc) <- runWriterT $ lift getArgs >>= mapM_ checkFile
-  putDoc doc
+  (_, doc) <- runWriterT $ lift Env.getArgs >>= mapM_ checkFile
+  PP.putDoc doc
 
-checkFile :: FilePath -> WriterT Doc IO ()
+checkFile :: FilePath -> WriterT PP.Doc IO ()
 checkFile cuminFile = do
-  tell $ dullyellow (text "Checking " <> text cuminFile) <> text "..." <> line
+  tell $ PP.dullyellow (PP.text "Checking " <> PP.text cuminFile) <> PP.text "..." <> PP.line
   buildModuleFromFile cuminFile >>= \case
     Left msg    -> tell msg
     Right modul -> case evalTC (unsafeIncludeModule preludeModule >> checkModule modul) def def of
-      Left msg -> tell $ prettyErr msg <> line
-      Right () -> tell $ dullgreen $ text "Success!" <> line
+      Left msg -> tell $ PP.pretty msg <> PP.line
+      Right () -> tell $ PP.dullgreen $ PP.text "Success!" <> PP.line

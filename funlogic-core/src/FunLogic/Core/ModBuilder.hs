@@ -37,6 +37,7 @@ buildModule name adts bindings = fst <$> execStateT (mapM_ collectADT adts >> ma
             , text "` at ", dullyellow $ text $ other^.adtSrcRef.to show]
           Nothing -> _2.at n .= Just adt
 
+-- | Returns an empty module with the given name
 emptyModule :: String -> CoreModule b
 emptyModule name = CoreModule
   { _modName = name
@@ -46,12 +47,12 @@ emptyModule name = CoreModule
 
 -- | Merges the second argument into the first one, if the names of bindings and data types are disjoint.
 -- Returns either the ambigous data types and bindings or a new merged module.
-importUnqualified :: CoreModule b -> CoreModule b -> Either (M.Map Name ADT, M.Map Name b) (CoreModule b)
-importUnqualified mod importMod
+importUnqualified :: CoreModule b -> CoreModule b -> Either (M.Map TyConName ADT, M.Map BindingName b) (CoreModule b)
+importUnqualified modul importMod
     | M.null commonBindings && M.null commonADTs = Right $
-      mod & modBinds %~ M.union (view modBinds importMod)
+      modul & modBinds %~ M.union (view modBinds importMod)
           & modADTs  %~ M.union (view modADTs importMod)
     | otherwise = Left (commonADTs, commonBindings)
   where
-    commonBindings = (M.intersection `on` view modBinds) mod importMod
-    commonADTs     = (M.intersection `on` view modADTs)  mod importMod
+    commonBindings = (M.intersection `on` view modBinds) modul importMod
+    commonADTs     = (M.intersection `on` view modADTs)  modul importMod

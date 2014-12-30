@@ -56,6 +56,7 @@ data CuMinPState
     } deriving (Show)
 makeLenses ''CuMinPState
 
+-- | Runs a CuMin parser naming the input.
 runCuMinParser :: String -> CuMinParser a -> Parser a
 runCuMinParser name p = evalIndentationParserT
                          (evalStateT (runCuMinParser' p) pstate)
@@ -69,29 +70,37 @@ instance FileParsing CuMinParser where
 instance RunnableParsing CuMinParser where
   runParser name content parser = runParser name content $ runCuMinParser name parser
 
+-- | Parses a CuMin program from a string returning detailed error information.
 parseCuMinString :: String -> String -> Result [Decl]
 parseCuMinString name = parseString (runCuMinParser name program) Data.Monoid.mempty
 
+-- | Parses a CuMin file without detailed error messages in case of failure.
 parseCuMinFile :: (MonadIO m) => FilePath -> m (Maybe [Decl])
 parseCuMinFile file = parseFromFile (runCuMinParser file program) file
 
+-- | Parses a CuMin file returning a detailled error message in case of failure.
 parseCuMinFileEx :: (MonadIO m) => FilePath -> m (Result [Decl])
 parseCuMinFileEx file = parseFromFileEx (runCuMinParser file program) file
 
+-- | Parses a CuMin program as a list of declarations.
 program :: CuMinParser [Decl]
 program = whiteSpace *> many (absoluteIndentation decl) <* eof
 
 -- * Declaration Parsing
 
+-- | Parses a CuMin declaration (which may be a data or function declaration).
 decl :: CuMinParser Decl
 decl = dataDecl <|> topLevelDecl
 
+-- | Parses a data declaration.
 dataDecl :: CuMinParser Decl
 dataDecl = localIndentation Gt $ DData <$> adtParser
 
+-- | Parses a function definition.
 topLevelDecl :: CuMinParser Decl
 topLevelDecl = DTop <$> binding
 
+-- | Parses a top level binding.
 binding :: CuMinParser Binding
 binding =
     captureSrcRef $ do
@@ -191,7 +200,7 @@ caseE = do
 
 -- * Syntactic Sugar
 
--- | syntactic sugar: [a,b,...] --> Cons a (Cons b ...)
+-- | Parses list syntactic sugar: [a,b,...] --> Cons a (Cons b ...)
 listE :: CuMinParser Exp
 listE = do
   list <- brackets $ commaSep expression
@@ -203,6 +212,7 @@ listE = do
 
 -- * Pattern Parsing
 
+-- | Parses a case pattern.
 patternP :: CuMinParser Pat
 patternP = choice
   [ PCon <$> conIdent <*> many varIdent

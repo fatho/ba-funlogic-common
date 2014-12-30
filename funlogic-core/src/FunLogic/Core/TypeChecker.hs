@@ -7,31 +7,56 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
-module FunLogic.Core.TypeChecker where
+module FunLogic.Core.TypeChecker
+  (
+  -- * Type Checker Monad
+  TCState (..)
+  , topScope, typeScope, dataScope
+  , TCEnv (..)
+  , localScope, tyVarScope, errContext, localConstraints
+  , Kind (..)
+  , adtKind
+  , TC
+  , evalTC
+  -- * Type Checker Interface
+  , assertTypesEq
+  , instantiate, instantiate'
+  , unsafeIncludeModule
+  , checkADT
+  , checkType
+  , checkForDataInstance
+  , deriveDataInstances
+  , withTyVars
+  , errorTC
+  -- * Error Messages
+  , TCErr (..)
+  , ErrCtx (..)
+  , ErrMsg (..)
+  , errSrc, errType, userCtx
+  , highlight
+  , errorDoc
+  ) where
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Monad                hiding (mapM, mapM_, forM_)
-import           Control.Monad.Error          hiding (mapM, mapM_, forM_)
-import           Control.Monad.Reader         hiding (mapM, mapM_, forM_)
-import           Control.Monad.RWS            hiding (mapM, mapM_, forM_)
-import           Control.Monad.State          hiding (mapM, mapM_, forM_)
+import           Control.Monad
+import           Control.Monad.Error
+import           Control.Monad.Reader
+import           Control.Monad.RWS
+import           Control.Monad.State
 import           Data.Default.Class
-import           Data.Foldable
-import           Data.List (elemIndex)
+import qualified Data.Foldable                as Fold
 import qualified Data.HashSet                 as HS
+import qualified Data.List                    as List
 import qualified Data.Map                     as M
 import           Data.Maybe
 import qualified Data.Set                     as S
-import           Prelude                      hiding (any, concat, foldr, mapM,
-                                               mapM_, elem)
+import           Prelude
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           FunLogic.Core.AST
 import           FunLogic.Core.Pretty
-
-type VarId = Int
 
 -- | Errors reported by type checker
 data TCErr e
@@ -41,24 +66,42 @@ data TCErr e
 -- | Context of an error message.
 data ErrCtx e
   = ErrCtx
-  { _errSrc  :: Maybe SrcRef  -- ^ position in the source file of the errorneous code part
-  , _errType :: Maybe Type    -- ^ type signature currently being checkd
-  , _userCtx :: e             -- ^ some other context information
+  { _errSrc  :: Maybe SrcRef
+  -- ^ position in the source file of the errorneous code part
+  , _errType :: Maybe Type
+  -- ^ type signature currently being checkd
+  , _userCtx :: e
+  -- ^ some other context information given by concrete implementations
   } deriving (Show)
 
 -- | Possible type checker errors
 data ErrMsg
   = ErrGeneral Doc
-  | ErrVarNotInScope Name
+  -- ^ an unspecified error
+  | ErrVarNotInScope VarName
+  -- ^ local variable referenced but not in scope
   | ErrTyVarNotInScope TVName
-  | ErrTyConNotInScope Name
-  | ErrConNotInScope Name
-  | ErrFunNotInScope Name
+  -- ^ type variable was not previously bound
+  | ErrTyConNotInScope TyConName
+  -- ^ type contructor (currently only ADTs) was referenced but not defined
+  | ErrConNotInScope DataConName
+  -- ^ data constructor was referenced but not defined
+  | ErrFunNotInScope BindingName
+  -- ^ function (top-level) was referenced but not defined
   | ErrKindMismatch Type Kind Kind
+  -- ^ A type constructor was applied to a wrong number of type arguments.
+  --   * the type with the kind mismatch
+  --   * the expected kind
+  --   * the given kind
   | ErrFreeVarInDecl TyDecl TVName
+  -- ^ the type declaration contains a free (i.e. unquantified) variable.
   | ErrTypeMismatch Type Type
-  | ErrNoDataInstanceForTyCon Name [Type]
+  -- ^ expected first type, but was given the second type
+  | ErrNoDataInstanceForTyCon TyConName [Type]
+  -- ^ The type constructor needs a Data instance, but has none.
+  -- The list contains the types which lead to that requirement.
   | ErrNoDataConstraintForTyVar TVName [Type]
+  -- ^ The type type variable needs a Data contraint. The list contains the types which lead to that requirement.
   deriving (Show)
 
 -- | Kind of a type constructor.
@@ -66,6 +109,7 @@ data ErrMsg
 data Kind
   = Kind
   { _kindArity :: Int
+  -- ^ the arity of the type constructor
   } deriving (Show, Eq)
 
 instance Default e => Error (TCErr e) where
@@ -91,16 +135,20 @@ instance Pretty e => Pretty (TCErr e) where
 instance Pretty ErrMsg where
   pretty = prettyMsg
 
+-- | Formats a document as error.
 errorDoc :: Doc -> Doc
 errorDoc = red
 
+-- | Highlights a document.
 highlight :: Doc -> Doc
 highlight = dullyellow
 
+-- | Pretty prints an error message.
 prettyErr :: Pretty e => TCErr e -> Doc
 prettyErr (TCErr msg ctx) = errorDoc (text "Error!") PP.<$> indent 2 (prettyMsg msg)
   PP.<$> errorDoc (text "Context:") PP.<$> indent 2 (pretty ctx)
 
+-- | Converts an error code to the corresponding message.
 prettyMsg :: ErrMsg -> Doc
 prettyMsg err = case err of
     ErrGeneral doc -> doc
@@ -126,28 +174,35 @@ prettyMsg err = case err of
              foldr (\ty d -> d </> (highlight (text "required by type:") <+> prettyType ty)) PP.empty tys
   where
     notInScope x y = text x <+> highlight (text y) <+> text "not in scope!"
-
-pluralize :: (Num a, Ord a) => a -> String -> Doc
-pluralize 1 str = text str
-pluralize _ str = text $ str ++ "s"
+    -- adds a plural s when there is more than one
+    pluralize 1 str = text str
+    pluralize _ str = text $ str ++ "s"
 
 -- * Definition of type checker monad
 
 -- | State of the type checker.
 data TCState
   = TCState
-    { _topScope  :: M.Map Name TyDecl -- ^ available top level function definitions
-    , _typeScope :: M.Map Name Kind   -- ^ type constructors in scope
-    , _dataScope :: M.Map Name (S.Set Int) -- ^ tyCon -> {tyVarIdx} (the type vars that need to be in Data)
+    { _topScope  :: M.Map BindingName TyDecl
+    -- ^ available top level function definitions
+    , _typeScope :: M.Map TyConName Kind
+    -- ^ type constructors in scope
+    , _dataScope :: M.Map DataConName (S.Set Int)
+    -- ^ Set of ADTs with Data instances. The set contains the indices of its type variables that need to be
+    -- in Data for the ADT to be in Data.
     } deriving (Eq, Show)
 
 -- | Environment used during type checking
 data TCEnv e
   = TCEnv
-    { _localScope :: M.Map Name Type   -- ^ identifiers and their corresponding types currently in scope
-    , _tyVarScope :: HS.HashSet Name   -- ^ type variables currently in scope
-    , _errContext :: ErrCtx e
-    , _localConstraints :: [TyConstraint] -- ^ type constraints from a top-level binding
+    { _localScope       :: M.Map VarName Type
+    -- ^ identifiers and their corresponding types currently in scope
+    , _tyVarScope       :: HS.HashSet TVName
+    -- ^ type variables currently in scope
+    , _errContext       :: ErrCtx e
+    -- ^ context information for error messages.
+    , _localConstraints :: [TyConstraint]
+    -- ^ type constraints from a top-level binding
     }
 
 instance Default TCState where
@@ -156,7 +211,9 @@ instance Default TCState where
 instance Default e => Default (TCEnv e) where
   def = TCEnv M.empty HS.empty def []
 
+-- | Contraints for a monad with support of type checker errors.
 type MonadTCErr e = MonadError (TCErr e)
+-- | Contraints for a monad with a type checker environment
 type MonadTCReader e = MonadReader (TCEnv e)
 
 -- | Type checker monad.
@@ -172,23 +229,20 @@ makeLenses ''TCState
 evalTC :: TC e a -> TCState -> TCEnv e -> Either (TCErr e) a
 evalTC action istate env = fst $ evalRWS (runErrorT (unwrapTC action)) env istate
 
+-- * Error Handling
+
+-- | Throws an error and enhances it with the current error context from the environment.
 errorTC :: Default e => ErrMsg -> TC e a
 errorTC msg = view errContext >>= throwError . TCErr msg
 
-catchTC :: Default e => TC e a -> (TCErr e -> TC e a) -> TC e a
-catchTC action handler = TC $ unwrapTC action `catchError` (unwrapTC . handler)
-
+-- | Throws an error when the two types are not equal.
 assertTypesEq :: Default e => Type -> Type -> TC e ()
 assertTypesEq ty1 ty2 = when (ty1 /= ty2) (errorTC $ ErrTypeMismatch ty1 ty2)
 
 -- * Helper Functions
 
-modifyM :: (MonadState s m) => Lens' s a -> (a -> m a) -> m ()
-modifyM lns f = use lns >>= f >>= assign lns
-
-readOnly :: (Monad m) => ReaderT s m a -> StateT s m a
-readOnly action = get >>= lift . runReaderT action
-
+-- | Brings the type variables in scope. At this point of type-checking, it only matters that the type variables
+-- exist, not any particular instantiation.
 withTyVars :: Default e => [TVName] -> TC e a -> TC e a
 withTyVars tvs = local (tyVarScope %~ HS.union (HS.fromList tvs))
 
@@ -196,8 +250,7 @@ withTyVars tvs = local (tyVarScope %~ HS.union (HS.fromList tvs))
 adtKind :: ADT -> Kind
 adtKind adt = adt^.adtTyArgs.to length.to Kind
 
--- | Instantiates type variables in a type declaration
---   without checking the context.
+-- | Instantiates type variables in a type declaration without checking the context.
 instantiate :: Default e => [Type] -> TyDecl -> TC e Type
 instantiate tyArgs decl@(TyDecl tyVars _ ty) = do
   when (length tyArgs /= length tyVars) $ errorTC (ErrGeneral $ hang 2 $ text "Wrong number of arguments for type instantiation of" </> highlight (prettyTyDecl decl))
@@ -208,6 +261,10 @@ instantiate tyArgs decl@(TyDecl tyVars _ ty) = do
       Just x -> return x
     replaceVar x = return x
   transformM replaceVar ty
+
+-- | Same as 'instatiate', but does not use the context from 'TC'.
+instantiate' :: Default e => [Type] -> TyDecl -> Either (TCErr e) Type
+instantiate' args ty = evalTC (instantiate args ty) def def
 
 -- * Type Checking
 
@@ -227,6 +284,8 @@ checkADT adt = local (errContext.errSrc .~ Just (adt^.adtSrcRef))
     $ mapMOf_ (adtConstr.traverse) checkConstr adt
   where checkConstr (ConDecl _ args) = mapM_ checkType args
 
+-- | Checks a type. A valid type does not contain free type variables, undefined type constructors or
+-- a wrong number of type arguments in a type constructor application.
 checkType :: Default e => Type -> TC e ()
 checkType ty = local (errContext.errType .~ Just ty) $ go ty where
   go :: Default e => Type -> TC e ()
@@ -238,12 +297,13 @@ checkType ty = local (errContext.errType .~ Just ty) $ go ty where
         | nargs == length args -> mapM_ go args
         | otherwise -> errorTC $ ErrKindMismatch t (Kind nargs) (Kind $ length args)
 
+-- | Checks if the given type has a Data instance.
 checkForDataInstance :: Default e => Type -> TC e ()
 checkForDataInstance (TVar tv) = do
     constraints <- view localConstraints
     unless (TyConstraint "Data" tv `elem` constraints) $ errorTC $ ErrNoDataConstraintForTyVar tv []
 checkForDataInstance ty@(TCon tyCon tys) =
-  checkRecursively `catchTC` \(TCErr msg _) -> case msg of
+  checkRecursively `catchError` \(TCErr msg _) -> case msg of
     ErrNoDataInstanceForTyCon tc ts -> errorTC  $ ErrNoDataInstanceForTyCon tc $ ty:ts
     ErrNoDataConstraintForTyVar tv ts -> errorTC  $ ErrNoDataConstraintForTyVar tv $ ty:ts
     e -> errorTC e
@@ -252,12 +312,12 @@ checkForDataInstance ty@(TCon tyCon tys) =
     constraints <- use $ dataScope.at tyCon
     case constraints of
       Nothing -> errorTC $ ErrNoDataInstanceForTyCon tyCon []
-      Just dataIndices -> mapM_ (checkForDataInstance . snd) $ filter ((`elem` dataIndices) . fst) $ zip [0..] tys
+      Just dataIndices -> Fold.mapM_ (checkForDataInstance . snd) $ filter ((`Fold.elem` dataIndices) . fst) $ zip [0..] tys
 
 -- * Data deriving
 
 -- | Given ADTs, derives their data instances
-deriveDataInstances :: M.Map Name ADT -> M.Map Name (S.Set Int)
+deriveDataInstances :: M.Map TyConName ADT -> M.Map TyConName (S.Set Int)
 deriveDataInstances adts = flip execState M.empty $ do
   put $ S.empty <$ adts
   fixpointIteration (itraverse_ addConstraints adts) -- iteratively tighten the constraints until fixpoint is reached
@@ -296,7 +356,7 @@ deriveDataInstances adts = flip execState M.empty $ do
 --   by Rec1 since iteration 2)
 --
 -- Afterwards: no more changes.
-addConstraints :: String -> ADT -> State (M.Map Name (S.Set Int)) ()
+addConstraints :: String -> ADT -> State (M.Map TyConName (S.Set Int)) ()
 addConstraints name adt = forM_ (adt^.adtConstr) $
   \(ConDecl _ tys) -> mapM_ requireDataForType tys
   where
@@ -306,13 +366,13 @@ addConstraints name adt = forM_ (adt^.adtConstr) $
         tyVarIdx = fromMaybe (error
           "Internal error in Salt type checker while deriving data instances: \
           \type variable doesn't occur on the left-hand side of the definition.") $
-          tv `elemIndex` (adt^.adtTyArgs)
+          tv `List.elemIndex` (adt^.adtTyArgs)
       in at name %= fmap (S.insert tyVarIdx) -- add Data constraint for this type variable
     -- for type constructors, recursively check the types passed to the type constructor that require Data
     requireDataForType (TCon tyCon tys) = do
       tyConConstraints <- use (at tyCon)
       case tyConConstraints of
-        Just dataIndices -> traverse_ (requireDataForType . (tys !!)) dataIndices
+        Just dataIndices -> Fold.traverse_ (requireDataForType . (tys !!)) dataIndices
         Nothing -> at name .= Nothing -- no Data instance allowed in this case
 
 -- | Repeat the monadic action until the state does not change anymore.

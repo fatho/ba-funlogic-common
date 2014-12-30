@@ -19,6 +19,7 @@ import           Text.Trifecta.Indentation
 
 import           FunLogic.Core.AST
 
+-- | Constraints needed for full monadic parsing.
 type MonadicParsing m =
   ( RunnableParsing m
   , FileParsing m
@@ -29,6 +30,7 @@ type MonadicParsing m =
   , Parsing m
   )
 
+-- | A parser with an environment that contains the name of the file currently being parsed.
 class Parsing m => FileParsing m where
   fileName :: m String
 
@@ -45,7 +47,8 @@ instance RunnableParsing Parser where
     where
     del = Directed (fromString name) 0 0 0 0
 
-newtype IndentParser a = IndentParser { runIndentParser :: (IndentationParserT Char Parser) a }
+-- | A parser monad supporting indentation sensitive parsing
+newtype IndentParser a = IndentParser { runIndentParser :: IndentationParserT Char Parser a }
   deriving ( Functor, Applicative, Alternative, Monad, MonadPlus)
 
 deriving instance Parsing IndentParser
@@ -64,6 +67,7 @@ instance RunnableParsing IndentParser where
 instance FileParsing IndentParser where
   fileName = IndentParser $ lift fileName
 
+-- | Parses an ADT definition.
 adtParser :: MonadicParsing m => m ADT
 adtParser = localIndentation Gt $ do
     reserved "data"
@@ -78,6 +82,7 @@ adtParser = localIndentation Gt $ do
 
 -- * Indentifiers
 
+-- | Style for type/term variable and top-level binding identifiers.
 varStyle :: CharParsing m => IdentifierStyle m
 varStyle = IdentifierStyle
             { _styleName      = "identifier"
@@ -92,6 +97,7 @@ varStyle = IdentifierStyle
             , _styleReservedHighlight = H.ReservedIdentifier
             }
 
+-- | Style for data/type constructor identifiers.
 conStyle :: CharParsing m => IdentifierStyle m
 conStyle = IdentifierStyle
             { _styleName      = "constructor"
@@ -102,32 +108,41 @@ conStyle = IdentifierStyle
             , _styleReservedHighlight = H.ReservedConstructor
             }
 
+-- | Parses a data/type contructor identifier.
 conIdent :: (TokenParsing m, Monad m) => m Name
 conIdent = ident conStyle
 
+-- | Parses a reversed constructor name.
 reservedCon :: (TokenParsing m, Monad m) => String -> m ()
 reservedCon = reserve conStyle
 
+-- | Parses a variable identifier.
 varIdent :: (TokenParsing m, Monad m) => m Name
 varIdent = ident varStyle
 
+-- | Parses a type variable identifier.
 tyVarIdent :: (TokenParsing m, Monad m) => m TVName
 tyVarIdent = ident varStyle
 
+-- | Parses a reserved symbol.
 reserved :: (TokenParsing m, Monad m) => String -> m ()
 reserved = reserve varStyle
 
 -- * Type Parsing
 
+-- | Parses type that may contain functions arrows at the top level.
 functionType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 functionType = chainr1 complexType (TFun <$ symbol "->")
 
+-- | Parses a type that may contain type constructor applications at the top level, but no function arrows.
 complexType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 complexType = choice
   [ TCon <$> conIdent <*> try (many simpleType)
   , try simpleType
   ]
 
+-- | Parses a type that may only have type variables, nullary type constructors, list types in bracket notation and
+-- tuples in parentheses notation at the top level.
 simpleType :: (TokenParsing m, Monad m, IndentationParsing m) => m Type
 simpleType = choice
     [ TVar <$> tyVarIdent
@@ -137,6 +152,7 @@ simpleType = choice
     , parens (localIndentation Any functionType)
     ]
 
+-- | Parses a type declaration of the format "forall <tyvars>.(<context>) => <type>
 typeDecl :: (TokenParsing m, Monad m, IndentationParsing m) => m TyDecl
 typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> functionType where
   forallVars = reserved "forall" *> many tyVarIdent <* symbol "."
@@ -147,12 +163,15 @@ typeDecl = TyDecl <$> option [] forallVars <*> option [] (try context) <*> funct
 
 -- * Common Functions
 
+-- | Mandatory annotations brackets ("<:" ":>").
 annotBrackets :: TokenParsing m => m a -> m a
 annotBrackets p = symbol "<:" *> p <* symbol ":>"
 
+-- | Optional annotations brackets ("<:" ":>").
 optionalAnnotBrackets :: TokenParsing m => m a -> m (Maybe a)
 optionalAnnotBrackets p = option Nothing (Just <$> annotBrackets p)
 
+-- | Skips comments and whitespace.
 skipComments :: Parser ()
 skipComments = skipSome (void space <|> comment) where
   comment   = void (string "{-") *> inComment

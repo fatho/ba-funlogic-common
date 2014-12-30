@@ -19,45 +19,69 @@ module Language.CuMin.AST
 import           Control.Applicative
 import           Control.Lens
 import           Data.Data
-import           Data.Typeable
 
 import           FunLogic.Core.AST
 
 type Module = CoreModule Binding
 
+-- | Top-level binding in CuMin.
 data Binding = Binding
-  { _bindingName :: Name
-  , _bindingArgs :: [Name]
+  { _bindingName :: BindingName
+  -- ^ Name the expression is bound to.
+  , _bindingArgs :: [VarName]
+  -- ^ List of function arguments.
   , _bindingExpr :: Exp
+  -- ^ Expression bound.
   , _bindingType :: TyDecl
+  -- ^ Type declaration of this binding.
   , _bindingSrc  :: SrcRef
+  -- ^ Source code location of the binding.
   } deriving (Show, Data, Typeable)
 
+-- | A top level CuMin declaration.
 data Decl
   = DTop Binding
+  -- ^ Function declaration
   | DData ADT
+  -- ^ Data declaration.
   deriving (Show, Data, Typeable)
 
+-- | Data type of CuMin expression.
 data Exp
-  = EVar Name
-  | ELet Name Exp Exp
-  | ELetFree Name Type Exp
+  = EVar VarName
+  -- ^ Referencing a local variable.
+  | ELet VarName Exp Exp
+  -- ^ Let binding of a variable. The first expression is bound to the name in the second expression.
+  | ELetFree VarName Type Exp
+  -- ^ Let binding of a free variable of the given type in the expression.
   | EFailed Type
-  | EFun Name [Type]
+  -- ^ Failure (bottom) of a given type.
+  | EFun BindingName [Type]
+  -- ^ Referenc to function with instantiation of polymorphic type variables.
   | EApp Exp Exp
+  -- ^ Function application.
   | ELit Lit
+  -- ^ Literal.
   | EPrim PrimOp [Exp]
-  | ECon Name [Type]
+  -- ^ Primitive operation.
+  | ECon VarName [Type]
+  -- ^ Reference constructor with instantiation of type arguments.
   | ECase Exp [Alt]
+  -- ^ Case expression.
   deriving (Show, Data, Typeable)
 
+-- | Primitive operations in CuMin.
 data PrimOp
   = PrimAdd
+  -- ^ Natural number addition.
   | PrimEq
+  -- ^ Natural number equality.
   deriving (Show, Data, Typeable)
 
+-- | Case alternative.
 data Alt
   = Alt Pat Exp
+  -- ^ An alternative consists of a pattern and a body expression.
   deriving (Show, Data, Typeable)
 
 instance HasPrecedence Exp where

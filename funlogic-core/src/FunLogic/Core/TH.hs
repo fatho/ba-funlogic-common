@@ -5,45 +5,52 @@ module FunLogic.Core.TH where
 import           Control.Applicative
 import           Control.Monad
 import           Data.Data
-import           Data.Map
-import           Language.Haskell.TH
-import           Language.Haskell.TH.Quote
+import qualified Data.Map as Map
+import qualified Language.Haskell.TH as TH
+import qualified Language.Haskell.TH.Quote as TH
 import           Text.Trifecta
 import           Text.Trifecta.Indentation
 
 import qualified FunLogic.Core.AST         as AST
-import           FunLogic.Core.Parser
+import qualified FunLogic.Core.Parser as Parser
 
-runParserQ :: (RunnableParsing m, Data a) => m a -> String -> String -> Q a
+-- | Runs a parser in the template haskell monad.
+runParserQ :: (Parser.RunnableParsing m, Data a) => m a -> String -> String -> TH.Q a
 runParserQ parser name content =
-  checkFailure $ runParser name content parser
+  checkFailure $ Parser.runParser name content parser
 
-runParserOnFileQ :: (RunnableParsing m, Data a) => m a -> String -> String -> Q a
+-- | Parses a file in the template haskell monad.
+runParserOnFileQ :: (Parser.RunnableParsing m, Data a) => m a -> String -> String -> TH.Q a
 runParserOnFileQ parser name fileName = do
-  content <- runIO $ readFile fileName
-  checkFailure $ runParser name content parser
+  content <- TH.runIO $ readFile fileName
+  checkFailure $ Parser.runParser name content parser
 
--- Workaround: `Map`s are not handled correctly by dataToExpQ, so must be
--- handled manually:
-qqMapADT :: Map String AST.ADT -> Maybe (Q Exp)
-qqMapADT m = let list = dataToExpQ (const Nothing) (toAscList m)
-  in Just [|fromAscList $list|]
+-- | Workaround to handle 'Map.Map' in 'TH.dataToExpQ'. Map's Data instance reports a wrong constructor name, so
+-- 'TH.dataToExpQ' cannot transform it to a template haskell instruction.
+qqMapADT :: Map.Map String AST.ADT -> Maybe TH.ExpQ
+qqMapADT m = let list = TH.dataToExpQ (const Nothing) (Map.toAscList m)
+  in Just [|Map.fromAscList $list|]
 
-checkFailure :: (Data a) => Result a -> Q a
+-- | Returns the value on success, fails with the error message otherwise.
+checkFailure :: (Data a) => Result a -> TH.Q a
 checkFailure = \case
   Success a -> return a
   Failure msg -> fail $ "Parsing quasi quote failed:\n`" ++ show msg ++ "`\n"
 
-makeQQ :: Data a => (a -> Q Exp) -> (String -> Q a) -> QuasiQuoter
-makeQQ toQ f = QuasiQuoter (f >=> toQ) undefined undefined undefined
+-- | Constructs an expression quasi-quoter from a parsing function and a functions transforming the value to a TH expression.
+makeQQ :: Data a => (a -> TH.ExpQ) -> (String -> TH.Q a) -> TH.QuasiQuoter
+makeQQ toQ f = TH.QuasiQuoter (f >=> toQ) undefined undefined undefined
 
-parserToQQ :: (RunnableParsing m, Data a) => (a -> Q Exp) -> m a -> QuasiQuoter
+-- | Transforms a parser to a quasi-quoter using 'makeQQ'.
+parserToQQ :: (Parser.RunnableParsing m, Data a) => (a -> TH.ExpQ) -> m a -> TH.QuasiQuoter
 parserToQQ toQ p = makeQQ toQ $ runParserQ p "<quasi-quote>"
 
-ty :: QuasiQuoter
-ty = parserToQQ (dataToExpQ (const Nothing))
-  (whiteSpace *> functionType <* eof :: IndentParser AST.Type)
+-- | A quasi quoter for 'AST.Type' values.
+ty :: TH.QuasiQuoter
+ty = parserToQQ (TH.dataToExpQ (const Nothing))
+  (whiteSpace *> Parser.functionType <* eof :: Parser.IndentParser AST.Type)
 
-adt :: QuasiQuoter
-adt = parserToQQ (dataToExpQ (const Nothing))
-  (absoluteIndentation (whiteSpace *> adtParser <* eof :: IndentParser AST.ADT))
+-- | A quasi quoter for 'AST.ADT' values.
+adt :: TH.QuasiQuoter
+adt = parserToQQ (TH.dataToExpQ (const Nothing))
+  (absoluteIndentation (whiteSpace *> Parser.adtParser <* eof :: Parser.IndentParser AST.ADT))

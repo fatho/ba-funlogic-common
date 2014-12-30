@@ -13,12 +13,15 @@ withPrec :: HasPrecedence a => Int -> (a -> Doc) -> a -> Doc
 withPrec requiredPrec prettifier e =
   (if prec e < requiredPrec then parens else id) $ prettifier e
 
+-- | Default indentation of code. Currently 2.
 defaultIndent :: Int
 defaultIndent = 2
 
+-- | Highlighting for keywords.
 keyword :: String -> Doc
 keyword = bold . blue . text
 
+-- | Pretty prints and ADT.
 prettyADT :: ADT -> Doc
 prettyADT adt = hang defaultIndent $
   keyword "data" <+> text (adt^.adtName) <+> tyArgs </> encloseSep (text "= ") empty (text "| ") constrs
@@ -26,24 +29,25 @@ prettyADT adt = hang defaultIndent $
     tyArgs = fillSep . map text $ adt^.adtTyArgs
     constrs = map (\c -> prettyConDecl c <+> empty) $ adt^.adtConstr
 
+-- | Pretty prints a constructor declaration.
 prettyConDecl :: ConDecl -> Doc
 prettyConDecl (ConDecl con tys) = case tys of
   [] -> text con
   _  -> hang defaultIndent $ text con </> fillSep (map (withPrec maxTypePrec prettyType) tys)
 
+-- | Pretty prints a type.
 prettyType :: Type -> Doc
 prettyType ty = case ty of
   TVar a     -> text a
   -- On the left hand side of "->" qarentheses for function types are required.
   -- On the right hand side they're not. Thus the difference in required precedence:
   TFun x y   -> withPrec (prc + 1) prettyType x </> text "->" <+> withPrec prc prettyType y
-  TTup x y   -> tupled [prettyType x, prettyType y]
-  TList x    -> char '[' <> prettyType x <> char ']'
   TCon c []  -> text c
   TCon c tys -> text c <+> fillSep (map (withPrec maxTypePrec prettyType) tys)
   where
     prc = prec ty
 
+-- | Pretty prints a type declaration.
 prettyTyDecl :: TyDecl -> Doc
 prettyTyDecl (TyDecl vs cs ty) =
   quantifications
@@ -55,6 +59,7 @@ prettyTyDecl (TyDecl vs cs ty) =
     constraints | null cs = empty
                 | otherwise = encloseSep (char '(') (char ')') (text ", ") (map prettyTyConstraint cs) <+> text "=>" </> empty
 
+-- | Pretty prints a type constraint.
 prettyTyConstraint :: TyConstraint -> Doc
 prettyTyConstraint (TyConstraint n v) = text n <+> text v
 

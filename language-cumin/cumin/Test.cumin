@@ -4,6 +4,9 @@ tMap f x = case x of Pair a b -> Pair<:b,b:> (f a) (f b)
 inc :: Nat -> Nat
 inc x = x + 1
 
+repeat :: forall a. a -> [a]
+repeat x = Cons<:a:> x (repeat<:a:> x)
+
 foo :: Pair Nat Nat
 foo = tMap<:Nat,Nat:> inc (Pair<:Nat,Nat:> 1 3)
 
@@ -13,8 +16,8 @@ pred x = not (x == 1)
 bar :: [Nat]
 bar = filter<:Nat:> pred [1,4,1,1,2,1,1]<:Nat:>
 
-maybeInc :: Nat -> Nat
-maybeInc x = let c :: Bool free in case c of
+maybeInc1 :: Nat -> Nat
+maybeInc1 x = let c :: Bool free in case c of
   True  -> x + 1
   False -> x
 
@@ -24,7 +27,7 @@ maybeInc2 = let c :: Bool free in case c of
   False -> id<:Nat:>
 
 doubleInc :: Nat -> Nat
-doubleInc y = let x = maybeInc y in x + x
+doubleInc y = let x = maybeInc1 y in x + x
 
 dup :: forall a.Data a => Pair a a
 dup = let x :: a free in Pair<:a,a:> x x
@@ -33,6 +36,18 @@ dup2 :: forall a.Data a => (a,a)
 dup2 = let x :: a free in
        let y :: a free in
        Pair<:a,a:> x y
+
+coin :: Nat
+coin = choose<:Nat:> 0 1
+
+double :: Nat -> Nat
+double n = n + n
+
+dc1 :: Nat
+dc1 = double coin
+
+dc2 :: Nat
+dc2 = coin + coin
 
 {- This should fail due to missing Data constraint: -}
 {-

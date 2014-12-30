@@ -25,7 +25,7 @@ buildModuleFromFile saltFile = parseSaltFileEx saltFile >>= \case
 buildModuleFromDecls :: String -> [Decl] -> Either Doc Module
 buildModuleFromDecls name decls =
   let
-    adts = [adt | DData adt <- decls]
+    adts = [adtd | DData adtd <- decls]
     bnds = [bnd | DTop bnd <- decls]
   in buildModule name adts bnds
 

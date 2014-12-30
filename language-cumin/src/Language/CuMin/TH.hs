@@ -58,7 +58,7 @@ moduleFromFile path =
   runIO (CuMin.buildModuleFromFile path) >>= \case
     Left err -> fail $ show err
     Right m -> case CuMin.evalTC (CuMin.checkModule m) def def of
-      Left err -> fail $ show $ PP.plain $ CuMin.prettyErr err
+      Left err -> fail $ show $ PP.plain $ PP.pretty err
       Right _ -> dataToExp m
 
 cuminDecls :: QuasiQuoter
