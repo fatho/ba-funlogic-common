@@ -76,7 +76,7 @@ data PrimOp
   -- ^ Natural number addition.
   | PrimEq
   -- ^ Natural number equality.
-  deriving (Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable)
 
 -- | Case alternative.
 data Alt
