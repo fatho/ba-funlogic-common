@@ -6,7 +6,7 @@ data Maybe a = Nothing | Just a
 
 data Either a b = Left a | Right b
 
-data Bool = True | False
+data Bool = False | True
 
 id :: forall a. a -> a
 id x = x
