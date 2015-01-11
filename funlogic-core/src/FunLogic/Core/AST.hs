@@ -1,15 +1,19 @@
-{-# LANGUAGE DeriveDataTypeable     #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE PatternSynonyms        #-}
-{-# LANGUAGE RecordWildCards        #-}
-{-# LANGUAGE TemplateHaskell        #-}
-{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE DeriveDataTypeable    #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
 module FunLogic.Core.AST where
 
 import           Control.Lens
 import           Data.Data
-import qualified Data.Map     as M
+import           Data.Foldable (Foldable)
+import qualified Data.Map      as M
 
 -- | Denotes a column index in the input file.
 type Column = Int
@@ -24,7 +28,7 @@ data CoreModule b = CoreModule
   -- ^ The top-level bindings defined in this module.
   , _modADTs  :: M.Map TyConName ADT
   -- ^ The algebraic data types defined in this module.
-  } deriving (Show, Data, Typeable)
+  } deriving (Show, Data, Typeable, Functor, Foldable, Traversable)
 
 -- | A class of lenses into everything that is a binding.
 class IsBinding b where
