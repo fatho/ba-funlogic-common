@@ -26,6 +26,7 @@ import           Data.Default.Class
 import           Data.Foldable
 import           Data.List                    (elemIndices)
 import qualified Data.Map                     as M
+import qualified Data.Set                     as Set
 import           Data.Monoid
 import           Data.Traversable
 import           Prelude                      hiding (any, elem, foldr, mapM,
@@ -67,7 +68,9 @@ instance Pretty SaltErrCtx where
 -- * Type Checking
 
 includeBuiltIns :: TC SaltErrCtx ()
-includeBuiltIns = typeScope %= M.union builtInTyCons
+includeBuiltIns = do
+  typeScope %= M.union builtInTyCons
+  dataScope %= M.insert "Nat" Set.empty
 
 -- | Typechecks a module.
 checkModule :: Module -> TC SaltErrCtx ()
@@ -77,7 +80,7 @@ checkModule saltMod = do
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
   mapM_ checkADT (saltMod^.modADTs)
   -- derive Data instances
-  dataScope .= deriveDataInstances (saltMod^.modADTs)
+  dataScope %= M.union (deriveDataInstances (saltMod^.modADTs))
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)
   topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)
