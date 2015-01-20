@@ -57,11 +57,13 @@ prettyExp ex = case ex of
   ECon c tys -> hang defaultIndent $ text c <> prettyTypeInstantiations tys
   ESet e -> char '{' <//> prettyExp e <//> char '}'
   ECase e alts -> keyword "case" </> withPrec prc prettyExp e <+> keyword "of"
-     <> nest defaultIndent (line <> align (foldr1 (\a b -> a <> line <> b) $ map prettyAlt alts))
+     <> prettyAlts alts
   EFailed ty -> keyword "failed" <> prettyTypeInstantiations [ty]
   EUnknown ty -> keyword "unknown" <> prettyTypeInstantiations [ty]
   where
     prc = prec ex -- precedence of the current expression
+    prettyAlts [] = text " {}"
+    prettyAlts alts = nest defaultIndent (line <> align (foldr1 (\a b -> a <> line <> b) $ map prettyAlt alts))
 
 prettyTypeInstantiations :: [Type] -> Doc
 prettyTypeInstantiations = \case

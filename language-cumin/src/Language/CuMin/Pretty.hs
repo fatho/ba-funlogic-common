@@ -52,7 +52,7 @@ prettyExp ex = case ex of
     _ -> error $ "Invalid primitive operation `" ++ show p ++ "` with arguments " ++ show exps ++ "."
   ECon c tys -> hang defaultIndent $ text c <> prettyTypeInstantiations tys
   ECase e alts -> keyword "case" </> withPrec prc prettyExp e <+> keyword "of"
-     <> nest defaultIndent (line <> align (foldr1 (\a b -> a <> line <> b) $ map prettyAlt alts))
+     <> prettyAlts alts
   ELet v e body -> keyword "let" </> hang 2 (text v <+> text "=" <+> prettyExp e)
     </> keyword "in" </> prettyExp body
   ELetFree v ty body -> keyword "let" </> hang 2 (text v <+> text "::" <+> prettyType ty <+> text "free")
@@ -60,6 +60,8 @@ prettyExp ex = case ex of
   EFailed ty -> keyword "failed" <> prettyTypeInstantiations [ty]
   where
     prc = prec ex -- precedence of the current expression
+    prettyAlts [] = text " {}"
+    prettyAlts alts = nest defaultIndent (line <> align (foldr1 (\a b -> a <> line <> b) $ map prettyAlt alts))
 
 prettyTypeInstantiations :: [Type] -> Doc
 prettyTypeInstantiations = \case
