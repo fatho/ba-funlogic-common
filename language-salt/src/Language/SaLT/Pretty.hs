@@ -65,10 +65,11 @@ prettyExp ex = case ex of
     prettyAlts [] = text " {}"
     prettyAlts alts = nest defaultIndent (line <> align (foldr1 (\a b -> a <> line <> b) $ map prettyAlt alts))
 
+-- | This pretty prints the type instantiations for a polymorphic function.
+-- It prints "<::>" for a monomorphic function (although that is not necessary)
+-- to make it clear that it is a function and not a local variable.
 prettyTypeInstantiations :: [Type] -> Doc
-prettyTypeInstantiations = \case
-  [] -> empty
-  tys -> encloseSep (text "<:") (text ":>") (char ',') $ map prettyType tys
+prettyTypeInstantiations = encloseSep (text "<:") (text ":>") (char ',') . map prettyType
 
 prettyAlt :: Alt -> Doc
 prettyAlt (Alt pat e) = hang defaultIndent $

@@ -31,6 +31,7 @@ import           Control.Monad
 import           Control.Monad.State
 import           Data.List                   (intercalate, nub, (\\))
 import qualified Data.Monoid
+import qualified Data.Set                    as Set
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -119,7 +120,29 @@ binding =
               ++ " occur(s) more than once on the left hand side of a binding"
       _ <- symbol "="
       expr <- expression
-      return (args, expr)
+      return (args, postProcessExpr (Set.fromList args) expr)
+
+-- | Replaces every variable that is not in the given set of local variables
+-- with a function with an empty type instantiation list.
+postProcessExpr :: Set.Set VarName -> Exp -> Exp
+postProcessExpr = go
+  where
+  go locals e = case e of
+    -- This is the interesting part:
+    EVar v -> if v `Set.member` locals then e else EFun v []
+    -- The rest is just recursion
+    ELet v x y -> ELet v (go locals x) (go (Set.insert v locals) y)
+    ELetFree v ty x -> ELetFree v ty (go (Set.insert v locals) x)
+    EFailed _ -> e
+    EFun _ _ -> e
+    EApp x y -> EApp (go locals x) (go locals y)
+    ELit _ -> e
+    EPrim oper es -> EPrim oper (map (go locals) es)
+    ECon _ _ -> e
+    ECase x alts -> ECase (go locals x) (map (postProcessAlt locals) alts)
+  postProcessAlt locals (Alt pat e) = case pat of
+    PVar v -> Alt pat (go (Set.insert v locals) e)
+    PCon _ vs -> Alt pat (go (locals `Set.union` Set.fromList vs) e)
 
 -- * Expression Parsing
 

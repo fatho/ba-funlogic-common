@@ -30,6 +30,7 @@ import           Control.Lens                hiding (noneOf)
 import           Control.Monad
 import           Control.Monad.State
 import qualified Data.Monoid
+import qualified Data.Set                    as Set
 import           Text.Parser.Expression
 import qualified Text.Parser.Token.Highlight as H
 import           Text.Trifecta
@@ -97,10 +98,33 @@ binding = captureSrcRef $
     (name, ty)    <- absoluteIndentation topLevelType
     (name', body) <- absoluteIndentation topLevelBody
     unless (name' == name) (fail "type declaration does not match body declaration")
-    return $ Binding name body ty
+    return $ Binding name (postProcessExp Set.empty body) ty
   where
     topLevelType = (,) <$> varIdent <* symbol "::" <*> typeDecl <* optional semi
     topLevelBody = (,) <$> varIdent <* symbol "=" <*> expression
+
+-- | Replaces every variable that is not in the given set of local variables
+-- with a function with an empty type instantiation list.
+postProcessExp :: Set.Set VarName -> Exp -> Exp
+postProcessExp = go
+  where
+  go locals e = case e of
+    -- This is the interesting part:
+    EVar v -> if v `Set.member` locals then e else EFun v []
+    -- The rest is just recursion
+    EFun _ _ -> e
+    ELam v ty x -> ELam v ty (go (Set.insert v locals) x)
+    EApp x y -> EApp (go locals x) (go locals y)
+    ELit _ -> e
+    EPrim oper es -> EPrim oper (map (go locals) es)
+    ECon _ _ -> e
+    ESet x -> ESet (go locals x)
+    ECase x alts -> ECase (go locals x) (map (postProcessAlt locals) alts)
+    EFailed _ -> e
+    EUnknown _ -> e
+  postProcessAlt locals (Alt pat e) = case pat of
+    PVar v -> Alt pat (go (Set.insert v locals) e)
+    PCon _ vs -> Alt pat (go (locals `Set.union` Set.fromList vs) e)
 
 -- * Expression Parsing
 

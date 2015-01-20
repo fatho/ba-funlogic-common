@@ -99,11 +99,7 @@ checkBinding bnd = let (TyDecl tvars tconstraints ty) = bnd^.bindingType in
 checkExp :: Exp -> TC SaltErrCtx Type
 checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
   go (EVar vname) = view (localScope.at vname) >>= \case
-    Nothing -> use (topScope.at vname) >>= \case
-      Nothing -> errorTC (ErrVarNotInScope vname)
-      Just (TyDecl args _ ty)
-        | null args -> return ty
-        | otherwise -> errorTC (ErrVarNotInScope vname)
+    Nothing -> errorTC (ErrVarNotInScope vname)
     Just ty -> return ty
 
   go (EFun fn tyArgs) = use (topScope.at fn) >>= \case
