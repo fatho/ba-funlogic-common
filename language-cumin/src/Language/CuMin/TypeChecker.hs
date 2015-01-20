@@ -157,10 +157,11 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
 
   go (ECase expr alts) = do
     expTy  <- checkExp expr
-    (aty:atys) <- mapM (checkAlt expTy) alts
-    case find (/=aty) atys of
-      Nothing -> return aty
-      Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
+    mapM (checkAlt expTy) alts >>= \case
+      [] -> errorTC $ ErrGeneral $ text "case expression without alternatives"
+      (aty:atys) -> case find (/=aty) atys of
+        Nothing -> return aty
+        Just wrongTy -> errorTC $ ErrTypeMismatch aty wrongTy
 
   go (EFailed ty) = return ty
 
