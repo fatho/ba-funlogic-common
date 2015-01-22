@@ -15,6 +15,7 @@ module Language.CuMin.Parser
   -- * raw parser interface
   , CuMinParser
   , runCuMinParser
+  , postProcessExp
   , program
   , expression
   , binding
@@ -120,12 +121,12 @@ binding =
               ++ " occur(s) more than once on the left hand side of a binding"
       _ <- symbol "="
       expr <- expression
-      return (args, postProcessExpr (Set.fromList args) expr)
+      return (args, postProcessExp (Set.fromList args) expr)
 
 -- | Replaces every variable that is not in the given set of local variables
 -- with a function with an empty type instantiation list.
-postProcessExpr :: Set.Set VarName -> Exp -> Exp
-postProcessExpr = go
+postProcessExp :: Set.Set VarName -> Exp -> Exp
+postProcessExp = go
   where
   go locals e = case e of
     -- This is the interesting part:

@@ -15,6 +15,7 @@ module Language.SaLT.Parser
   -- * raw parser interface
   , SaltParser
   , runSaltParser
+  , postProcessExp
   , program
   , expression
   , binding
