@@ -173,7 +173,7 @@ unknownE :: SaltParser Exp
 unknownE = reserved "unknown" >> EUnknown <$> annotBrackets functionType
 
 failedE :: SaltParser Exp
-failedE = reserved "unknown" >> EFailed <$> annotBrackets functionType
+failedE = reserved "failed" >> EFailed <$> annotBrackets functionType
 
 conE :: SaltParser Exp
 conE = ECon
