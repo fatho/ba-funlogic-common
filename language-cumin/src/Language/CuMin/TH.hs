@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Language.CuMin.TH
   ( cuminDecls
   , cuminExp
@@ -13,20 +14,20 @@ module Language.CuMin.TH
 import           Control.Applicative
 import           Control.Monad
 import           Data.Data
+import           Data.Default.Class
 import           Data.Generics
-import qualified Data.Map as Map
-import Data.Default.Class
+import qualified Data.Map                     as Map
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.Trifecta
 import           Text.Trifecta.Indentation
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
 import           FunLogic.Core.TH
-import qualified Language.CuMin.AST as CuMin
-import qualified Language.CuMin.Parser as CuMin
-import qualified Language.CuMin.ModBuilder as CuMin
-import qualified Language.CuMin.TypeChecker as CuMin
+import qualified Language.CuMin.AST           as CuMin
+import qualified Language.CuMin.ModBuilder    as CuMin
+import qualified Language.CuMin.Parser        as CuMin
+import qualified Language.CuMin.TypeChecker   as CuMin
 
 -- * Workaround
 
@@ -44,7 +45,6 @@ dataToExp = dataToExpQ qqAll
 
 -- * QuasiQuoters
 
--- This cannot go into TH.hs because of cyclic module dependencies.
 cuminModule :: String -> QuasiQuoter
 cuminModule name = makeQQ dataToExp $ \str ->
   (CuMin.buildModuleFromDecls name <$> runParserQ CuMin.program name str)

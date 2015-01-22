@@ -50,5 +50,5 @@ choose :: forall a. Set a -> Set a -> Set a
 choose = \xs :: Set a ->
          \ys :: Set a -> unknown<:Bool:>
             >>= \c :: Bool -> case c of
-              False -> x
-              True -> y
+              False -> xs
+              True -> ys

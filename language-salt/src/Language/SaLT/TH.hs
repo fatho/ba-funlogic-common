@@ -1,28 +1,32 @@
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Language.SaLT.TH
   ( saltDecls
   , saltExp
   , saltPat
   , saltBinding
-  , parseSaltPrelude
-  , parseSaltFileDeclsQ
+  , saltModule
+  , moduleFromFile
   , dataToExp
   , module FunLogic.Core.TH
   ) where
 
 import           Control.Applicative
-import           Control.Monad
 import           Data.Data
+import           Data.Default.Class
 import           Data.Generics
 import           Data.Map
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.Trifecta
 import           Text.Trifecta.Indentation
 
 import           FunLogic.Core.TH
-import qualified Language.SaLT.AST as AST
-import           Language.SaLT.Parser
+import qualified Language.SaLT.AST            as AST
+import qualified Language.SaLT.ModBuilder     as SaLT
+import qualified Language.SaLT.Parser         as SaLT
+import qualified Language.SaLT.TypeChecker    as SaLT
 
 -- * Workaround
 
@@ -40,20 +44,30 @@ dataToExp = dataToExpQ qqAll
 
 -- * QuasiQuoters
 
-parseSaltFileDeclsQ :: String -> FilePath -> Q Exp
-parseSaltFileDeclsQ name = runParserOnFileQ program name >=> dataToExp
+saltModule :: String -> QuasiQuoter
+saltModule name = makeQQ dataToExp $ \str ->
+  (SaLT.buildModuleFromDecls name <$> runParserQ SaLT.program name str)
+  >>= check
+  where
+    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"
+    check (Right m) = return m
 
-parseSaltPrelude :: Q Exp
-parseSaltPrelude = runParserOnFileQ program "<prelude>" "salt/Prelude.salt" >>= dataToExp
+moduleFromFile :: FilePath -> ExpQ
+moduleFromFile path =
+  runIO (SaLT.buildModuleFromFile path) >>= \case
+    Left err -> fail $ show err
+    Right m -> case SaLT.evalTC (SaLT.checkModule m) def def of
+      Left err -> fail $ show $ PP.plain $ PP.pretty err
+      Right _ -> dataToExp m
 
 saltDecls :: QuasiQuoter
-saltDecls = parserToQQ dataToExp program
+saltDecls = parserToQQ dataToExp SaLT.program
 
 saltExp :: QuasiQuoter
-saltExp = parserToQQ dataToExp (whiteSpace *> expression <* whiteSpace <* eof)
+saltExp = parserToQQ dataToExp (whiteSpace *> SaLT.expression <* whiteSpace <* eof)
 
 saltPat :: QuasiQuoter
-saltPat = parserToQQ dataToExp (whiteSpace *> patternP <* whiteSpace <* eof)
+saltPat = parserToQQ dataToExp (whiteSpace *> SaLT.patternP <* whiteSpace <* eof)
 
 saltBinding :: QuasiQuoter
-saltBinding = parserToQQ dataToExp . absoluteIndentation $ whiteSpace *> binding <* eof
+saltBinding = parserToQQ dataToExp . absoluteIndentation $ whiteSpace *> SaLT.binding <* eof
