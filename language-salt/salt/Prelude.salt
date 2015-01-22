@@ -45,3 +45,10 @@ filter = \f :: (a -> Bool) ->
            Cons y ys -> case f y of
              True -> Cons<:a:> y (filter<:a:> f ys)
              False -> filter<:a:> f ys
+
+choose :: forall a. Set a -> Set a -> Set a
+choose = \xs :: Set a ->
+         \ys :: Set a -> unknown<:Bool:>
+            >>= \c :: Bool -> case c of
+              False -> x
+              True -> y
