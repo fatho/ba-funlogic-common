@@ -8,12 +8,22 @@ data Either a b = Left a | Right b
 
 data Bool = False | True
 
+{- * Useful functions for higher order programming -}
+
+
 id :: forall a. a -> a
 id = \x :: a -> x
 
 const :: forall a b.a -> b -> a
 const = \c :: a ->
         \x :: b -> c
+
+flip :: forall a b c. (a -> b -> c) -> b -> a -> c
+flip = \f :: (a -> b -> c) ->
+       \x :: b ->
+       \y :: a -> f y x
+
+{- * Functions on pairs -}
 
 fst :: forall a b. (a, b) -> a
 fst = \p :: (a,b) -> case p of
@@ -23,14 +33,40 @@ snd :: forall a b. (a, b) -> b
 snd = \p :: (a,b) -> case p of
   Pair x y -> y
 
+{- * Non-Determinism -}
+
+choose :: forall a. Set a -> Set a -> Set a
+choose = \xs :: Set a ->
+         \ys :: Set a -> unknown<:Bool:>
+            >>= \c :: Bool -> case c of
+              False -> xs
+              True -> ys
+sMap :: forall a b. (a -> b) -> Set a -> Set b
+sMap = \f :: (a -> b) ->
+       \xs :: Set a -> xs >>= \x :: a -> {f x}
+
+{- * Functions on Bool -}
+
 not :: Bool -> Bool
 not = \x :: Bool -> case x of
               True -> False
               False -> True
 
-sMap :: forall a b. (a -> b) -> Set a -> Set b
-sMap = \f :: (a -> b) ->
-       \xs :: Set a -> xs >>= \x :: a -> {f x}
+and :: Bool -> Bool -> Bool
+and = \x :: Bool -> case x of
+        True -> \y :: Bool -> case y of
+          True -> True
+          False -> False
+        False -> const<:Bool,Bool:> False
+
+or :: Bool -> Bool -> Bool
+or = \x :: Bool -> case x of
+       True -> const<:Bool,Bool:> True
+       False ->  \y :: Bool -> case y of
+         True -> True
+         False -> False
+
+{- * Functions on lists -}
 
 map :: forall a b. (a -> b) -> [a] -> [b]
 map = \f :: (a -> b) ->
@@ -46,9 +82,28 @@ filter = \f :: (a -> Bool) ->
              True -> Cons<:a:> y (filter<:a:> f ys)
              False -> filter<:a:> f ys
 
-choose :: forall a. Set a -> Set a -> Set a
-choose = \xs :: Set a ->
-         \ys :: Set a -> unknown<:Bool:>
-            >>= \c :: Bool -> case c of
-              False -> xs
-              True -> ys
+foldr :: forall a b. (a -> b -> b) -> b -> [a] -> b
+foldr = \f :: (a -> b -> b) ->
+        \c :: b ->
+        \xs :: [a] -> case xs of
+          Nil -> c
+          Cons y ys -> f y (foldr<:a,b:> f c ys)
+
+length :: forall a. List a -> Nat
+length = foldr<:a,Nat:> (\x :: a -> \n :: Nat -> n + 1) 0
+
+{- * Functions Either and Maybe -}
+
+either :: forall a b c. (a -> c) -> (b -> c) -> Either a b -> c
+either = \f :: (a -> c) ->
+  \g :: (b -> c) ->
+  \e :: Either a b -> case e of
+    Left x -> f x
+    Right y -> g y
+
+maybe :: forall a b. b -> (a -> b) -> Maybe a -> b
+maybe = \n :: b ->
+  \f :: (a -> b) ->
+  \m :: Maybe a -> case m of
+    Nothing -> n
+    Just x -> f x
