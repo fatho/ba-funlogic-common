@@ -136,9 +136,9 @@ data TyConstraint
 
 -- | Representation of CuMin/SaLT types.
 data Type
-  = TVar  TVName
+  = TVar TVName
   -- ^ A type variable.
-  | TCon  Name [Type]
+  | TCon TyConName [Type]
   -- ^ A type constructor. Note that the function arrow is just a type constructor with two arguments:
   -- > TCon "->" [from, to]
   deriving (Show, Eq, Data, Typeable)
@@ -203,8 +203,7 @@ adtConstructorTypes ADT{..} = M.fromList $ map go _adtConstr where
 
 -- | Splits a function type into a list of argument types and a result type.
 dissectFunTy :: Type -> ([Type], Type)
-dissectFunTy (TFun x y) = dissectFunTy y & _1 %~ (x:)
-dissectFunTy x          = ([], x)
+dissectFunTy = foldFunctionType (\t -> _1 %~ (t:)) ((,) [])
 
 -- | For a list of ADTs, returns a list of constructors that are defined multiple times.
 -- `(x, [("Foo", y)])` means that the constructor "Foo" of ADT "x" has previously been defined in ADT y.
@@ -217,3 +216,13 @@ findDuplCon xs = go M.empty xs where
         otherDups = go (M.union conset adtConSet) adts
     in [(adt,dupCons) | not (null dupCons) ] ++ otherDups
 
+-- | Fold a type.
+foldType :: (TyConName -> [a] -> a) -> (TVName -> a) -> Type -> a
+foldType f g = go where
+  go (TVar v)    = g v
+  go (TCon c vs) = f c (map go vs)
+
+-- | Folds along a function type signature.
+foldFunctionType :: (Type -> a -> a) -> (Type -> a) -> Type -> a
+foldFunctionType ff fe (TFun s t) = ff s $ foldFunctionType ff fe t
+foldFunctionType _ fe ty = fe ty
