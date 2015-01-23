@@ -105,12 +105,15 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
   go (EFun fn tyArgs) = use (topScope.at fn) >>= \case
     Nothing -> errorTC (ErrFunNotInScope fn)
     Just decl@(TyDecl tyDeclVars tyConstraints _) -> do
+      -- instantiate first to detect if the right number of arguments was given
+      -- otherwise, the check for data instances would crash
+      realType <- instantiate tyArgs decl
       mapM_ checkType tyArgs
       let
         dataConstraints = tyConstraints >>= \(TyConstraint tyClass tv) -> if tyClass == "Data" then return tv else []
         dataConstraintsIndices = dataConstraints >>= (`elemIndices` tyDeclVars)
       mapM_ (checkForDataInstance . (tyArgs !!)) dataConstraintsIndices
-      instantiate tyArgs decl
+      return realType
 
   go (ELam argName argTy body) = do
     checkType argTy
