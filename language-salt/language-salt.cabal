@@ -96,6 +96,7 @@ test-suite salt-test
                      , trifecta             ==1.4.*
                      , lens                 ==4.4.*
                      , mtl                  ==2.1.*
+                     , transformers         ==0.3.*
                      , containers           ==0.5.*
                      , unordered-containers ==0.2.*
                      , ansi-wl-pprint       ==0.6.*
