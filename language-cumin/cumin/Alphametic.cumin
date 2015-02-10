@@ -1,0 +1,114 @@
+{- 
+A simple cumin program solving the "send more money" alphametic puzzle.
+
+    s e n d         9 5 6 7     d 7  |  o 0
++   m o r e     +   1 0 8 5     e 5  |  r 8
+-----------     -----------     m 1  |  s 9
+= m o n e y     = 1 0 6 5 2     n 6  |  y 2
+
+This program uses:
+- user defined data types
+- higher order
+- + and == for Nat
+- choice
+
+It does not use free variables.
+
+Author: Stefan Mehner (mehner@iai.uni-bonn.de)
+-}
+
+{- general stuff -}
+
+data Success = Success
+
+andS :: Success -> Success -> Success
+andS x y = case x of {Success -> case y of {Success -> Success}}
+
+guard :: Bool -> Success
+guard b = case b of {True -> Success; False -> failed<:Success:>}
+
+all :: forall a . (a -> Success) -> [a] -> Success
+all p as = foldr<:Success, Success:> andS Success (map<:a,Success:> p as)
+
+pick :: forall a . [a] -> a
+pick = foldr<:a,a:> choose<:a:> failed <:a:>
+
+{- digits and the allDifferent constraint -}
+
+digit :: Nat
+digit = pick<:Nat:> [0,1,2,3,4,5,6,7,8,9]<:Nat:>
+
+unEqual :: Nat -> Nat -> Success
+unEqual n n' = guard (not (n == n'))
+
+notElem :: Nat -> [Nat] -> Success
+notElem n ns = all<:Nat:> (unEqual n) ns
+
+allDifferent :: [Nat] -> Success
+allDifferent ns = case ns of
+  Nil -> Success
+  Cons m ms -> andS (allDifferent ms) (notElem m ms)
+
+{- arithmetic constraint -}
+
+{- 
+            The 
+        arithmetic
+       constraint is 
+    checked by applying
+  the standard algorithm 
+ for addition, ie., column-
+ wise starting at the small 
+ end. The |Column| type re-
+presents one column and the
+whole puzzle is given by a 
+list of columns, small end 
+first. The function check
+ takes a list of colums 
+  and a carry and recur-
+   sively checks the 
+        equation.
+-}
+
+data Column = Column Nat Nat Nat
+
+check :: [Column] -> Nat -> Success
+check cols carry = case cols of
+  Nil -> guard (carry == 0)                                {- no more columns, so no carry left -}
+  Cons c cs -> case c of
+    Column x y z -> choose<:Success:> 
+                      (andS
+                        (guard (carry + x + y == z))       {- the column does not produce a carry -}
+                        (check cs 0)) 
+                      (andS 
+                        (guard (carry + x + y == 10 + z))  {- the column does produce a carry -}
+                        (check cs 1))
+
+{- putting the pieces together -}
+
+solutions :: [Nat]
+solutions =
+  let d = digit in
+  let e = digit in
+  let m = digit in
+  let n = digit in
+  let o = digit in
+  let r = digit in
+  let s = digit in
+  let y = digit in
+  let equation = [Column d e y
+                 ,Column n r e
+                 ,Column e o n
+                 ,Column s m o
+                 ,Column 0 0 m]<:Column:> in
+  case (andS
+          (check equation 0)
+       (andS
+          (all<:Nat:> (unEqual 0) [s,m]<:Nat:>)
+          (allDifferent [d,e,m,n,o,r,s,y]<:Nat:>)
+       )
+       ) of
+    Success -> [d,e,m,n,o,r,s,y]<:Nat:>
+
+
+
