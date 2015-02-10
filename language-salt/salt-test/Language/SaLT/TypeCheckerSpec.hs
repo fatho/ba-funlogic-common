@@ -25,7 +25,9 @@ fileExtensionIs ext path = File.takeExtension path == ext
 
 -- | Returns all files in a given directory matching the predicate.
 getDirectoryFiles :: MonadIO m => (FilePath -> m Bool) -> FilePath -> m [FilePath]
-getDirectoryFiles p = liftIO . Dir.getDirectoryContents >=> filterM (liftIO . Dir.doesFileExist) >=> filterM p
+getDirectoryFiles p dir = map (dir File.</>) `liftM` liftIO (Dir.getDirectoryContents dir)
+  >>= filterM (liftIO . Dir.doesFileExist)
+  >>= filterM p
 
 -- | Extends scope with built-ins and prelude module.
 prepareTC :: TC SaltErrCtx ()
