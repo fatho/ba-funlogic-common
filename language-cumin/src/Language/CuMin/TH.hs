@@ -12,7 +12,6 @@ module Language.CuMin.TH
   ) where
 
 import           Control.Applicative
-import           Control.Monad
 import           Data.Data
 import           Data.Default.Class
 import           Data.Generics
@@ -50,7 +49,7 @@ cuminModule name = makeQQ dataToExp $ \str ->
   (CuMin.buildModuleFromDecls name <$> runParserQ CuMin.program name str)
   >>= check
   where
-    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"
+    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show (PP.plain msg) ++"`\n"
     check (Right m) = return m
 
 moduleFromFile :: FilePath -> ExpQ

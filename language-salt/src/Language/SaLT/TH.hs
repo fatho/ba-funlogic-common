@@ -49,7 +49,7 @@ saltModule name = makeQQ dataToExp $ \str ->
   (SaLT.buildModuleFromDecls name <$> runParserQ SaLT.program name str)
   >>= check
   where
-    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show msg ++"`\n"
+    check (Left msg) = fail $ "Error when building module from quasi quote:\n`" ++ show (PP.plain msg) ++"`\n"
     check (Right m) = return m
 
 moduleFromFile :: FilePath -> ExpQ

@@ -1,18 +1,19 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module FunLogic.Core.TH where
 
 import           Control.Applicative
 import           Control.Monad
 import           Data.Data
-import qualified Data.Map as Map
-import qualified Language.Haskell.TH as TH
-import qualified Language.Haskell.TH.Quote as TH
+import qualified Data.Map                     as Map
+import qualified Language.Haskell.TH          as TH
+import qualified Language.Haskell.TH.Quote    as TH
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.Trifecta
 import           Text.Trifecta.Indentation
 
-import qualified FunLogic.Core.AST         as AST
-import qualified FunLogic.Core.Parser as Parser
+import qualified FunLogic.Core.AST            as AST
+import qualified FunLogic.Core.Parser         as Parser
 
 -- | Runs a parser in the template haskell monad.
 runParserQ :: (Parser.RunnableParsing m, Data a) => m a -> String -> String -> TH.Q a
@@ -35,7 +36,7 @@ qqMapADT m = let list = TH.dataToExpQ (const Nothing) (Map.toAscList m)
 checkFailure :: (Data a) => Result a -> TH.Q a
 checkFailure = \case
   Success a -> return a
-  Failure msg -> fail $ "Parsing quasi quote failed:\n`" ++ show msg ++ "`\n"
+  Failure msg -> fail $ "Parsing quasi quote failed:\n`" ++ show (PP.plain msg) ++ "`\n"
 
 -- | Constructs an expression quasi-quoter from a parsing function and a functions transforming the value to a TH expression.
 makeQQ :: Data a => (a -> TH.ExpQ) -> (String -> TH.Q a) -> TH.QuasiQuoter
