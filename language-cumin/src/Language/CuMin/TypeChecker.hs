@@ -142,8 +142,10 @@ checkExp e = local (errContext.userCtx.errExp %~ (e:)) $ go e where
     return TNat
 
   go (EPrim PrimEq [x, y]) = do
-    checkExp x >>= assertTypesEq TNat
-    checkExp y >>= assertTypesEq TNat
+    ty1 <- checkExp x
+    ty2 <- checkExp y
+    assertTypesEq ty1 ty2
+    checkForDataInstance ty1
     return (TCon "Bool" [])
 
   go e@(EPrim _ _) = errorTC $ ErrGeneral $ text $ "Wrong use of primitive operation: " ++ show e
