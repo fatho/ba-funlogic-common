@@ -279,7 +279,7 @@ unsafeIncludeModule cuminMod = do
   typeScope %= M.union (adtKind <$> cuminMod^.modADTs)
   topScope  %= M.union (view bindingType <$> cuminMod^.modBinds)
   topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
-  dataScope %= M.union (deriveDataInstances (cuminMod^.modADTs) M.empty)
+  dataScope %= deriveDataInstances (cuminMod^.modADTs)
 
 -- | Typechecks an ADT
 checkADT :: Default e => ADT -> TC e ()
