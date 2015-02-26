@@ -77,7 +77,7 @@ checkModule cuminMod = do
   typeScope %= M.union (adtKind <$> cuminMod^.modADTs)
   mapM_ checkADT (cuminMod^.modADTs)
   -- derive Data instances
-  dataScope %= M.union (deriveDataInstances (cuminMod^.modADTs))
+  dataScope %= deriveDataInstances (cuminMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> cuminMod^.modBinds)
   topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
