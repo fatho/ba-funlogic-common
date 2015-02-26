@@ -80,7 +80,7 @@ checkModule saltMod = do
   typeScope %= M.union (adtKind <$> saltMod^.modADTs)
   mapM_ checkADT (saltMod^.modADTs)
   -- derive Data instances
-  dataScope %= M.union (deriveDataInstances (saltMod^.modADTs))
+  dataScope %= deriveDataInstances (saltMod^.modADTs)
   -- check all top level bindings
   topScope %= M.union (view bindingType <$> saltMod^.modBinds)
   topScope %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ saltMod^.modADTs)

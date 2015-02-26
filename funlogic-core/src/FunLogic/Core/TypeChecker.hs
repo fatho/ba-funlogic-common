@@ -279,7 +279,7 @@ unsafeIncludeModule cuminMod = do
   typeScope %= M.union (adtKind <$> cuminMod^.modADTs)
   topScope  %= M.union (view bindingType <$> cuminMod^.modBinds)
   topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
-  dataScope %= M.union (deriveDataInstances (cuminMod^.modADTs))
+  dataScope %= M.union (deriveDataInstances (cuminMod^.modADTs) M.empty)
 
 -- | Typechecks an ADT
 checkADT :: Default e => ADT -> TC e ()
@@ -321,9 +321,9 @@ checkForDataInstance ty@(TCon tyCon tys) =
 -- * Data deriving
 
 -- | Given ADTs, derives their data instances
-deriveDataInstances :: M.Map TyConName ADT -> M.Map TyConName (S.Set Int)
-deriveDataInstances adts = flip execState M.empty $ do
-  put $ S.empty <$ adts
+deriveDataInstances :: M.Map TyConName ADT -> M.Map TyConName (S.Set Int) -> M.Map TyConName (S.Set Int)
+deriveDataInstances adts = execState $ do
+  modify $ M.union $ S.empty <$ adts
   fixpointIteration (itraverse_ addConstraints adts) -- iteratively tighten the constraints until fixpoint is reached
 
 -- | Add Data constraints for relevant type variables
