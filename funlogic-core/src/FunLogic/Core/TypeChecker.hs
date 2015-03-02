@@ -22,6 +22,7 @@ module FunLogic.Core.TypeChecker
   , assertTypesEq
   , instantiate, instantiate'
   , unsafeIncludeModule
+  , checkCasePatterns
   , checkADT
   , checkType
   , checkForDataInstance
@@ -280,6 +281,32 @@ unsafeIncludeModule cuminMod = do
   topScope  %= M.union (view bindingType <$> cuminMod^.modBinds)
   topScope  %= M.union (M.unions $ map adtConstructorTypes $ M.elems $ cuminMod^.modADTs)
   dataScope %= deriveDataInstances (cuminMod^.modADTs)
+
+-- | Checks the patterns of a case expression.
+-- They must satisfy the following conditions:
+-- There is at least one constructor pattern.
+-- If there is a variable pattern, it is the only and last one.
+-- No two patterns match the same constructor.
+checkCasePatterns :: Default e => [Pat] -> TC e ()
+checkCasePatterns pats = do
+  unless (any isConstructorPattern pats) $
+    errorTC $ ErrGeneral $ text "There must be at least one constructor pattern in a case expression."
+  let varPatIndices = filter (not . isConstructorPattern . snd) (zip [0..] pats)
+  case varPatIndices of
+    [] -> return ()
+    [(i, _)] -> when (i /= length pats - 1) $
+      errorTC $ ErrGeneral $ text "A variable pattern must be the last one in a case expression."
+    _ -> errorTC $ ErrGeneral $ text "There can be only one variable pattern in a case expression."
+  let conPatterns = pats >>= \case { PCon c _ -> return c; _ -> [] }
+      duplicates = map head . filter ((> 1) . length) . List.group . List.sort $ conPatterns
+  unless (null duplicates) $
+    errorTC $ ErrGeneral $ text "Some constructors ("
+      <> cat (punctuate comma $ map text duplicates)
+      <> text ") are matched more than once."
+  where
+  isConstructorPattern = \case
+    PCon _ _ -> True
+    _ -> False
 
 -- | Typechecks an ADT
 checkADT :: Default e => ADT -> TC e ()
