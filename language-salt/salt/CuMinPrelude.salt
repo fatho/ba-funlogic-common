@@ -1,0 +1,115 @@
+data Bool  = False | True
+
+data Either a b = Left a | Right b
+
+data List a = Nil | Cons a (List a)
+
+data Maybe a = Nothing | Just a
+
+data Pair a b = Pair a b
+
+and :: Set (Bool -> Set (Bool -> Set Bool))
+and = {\x15 :: Bool -> {\y16 :: Bool -> case x15 of
+    True -> case y16 of
+        True -> {True<::>}
+        False -> {False<::>}
+    False -> {False<::>}}}
+
+choose :: forall a. Set (a -> Set (a -> Set a))
+choose = {\x17 :: a -> {\y18 :: a -> unknown<:Bool:> >>=
+  \choice19 :: Bool -> case choice19 of
+    False -> {x17}
+    True -> {y18}}}
+
+const :: forall a b. Set (a -> Set (b -> Set a))
+const = {\c20 :: a -> {\x21 :: b -> {c20}}}
+
+either :: forall a b c. Set ((a -> Set c) -> Set ((b
+  -> Set c) -> Set (Either a b -> Set c)))
+either = {\f22 :: (a -> Set c) -> {\g23 :: (b
+                                      -> Set c) -> {\e24 :: Either a b -> case
+  e24 of
+    Left x25 -> f22 x25
+    Right y26 -> g23 y26}}}
+
+filter :: forall a. Set ((a -> Set Bool) -> Set (List a
+  -> Set (List a)))
+filter = {\f27 :: (a -> Set Bool) -> {\x28 :: List a ->
+  case x28 of
+    Nil -> {Nil<:a:>}
+    Cons y29 ys30 -> f27 y29 >>= \scrutinee31 :: Bool ->
+      case scrutinee31 of
+        True -> filter<:a:> >>= \fun32 :: ((a -> Set Bool)
+                                   -> Set (List a -> Set (List a))) -> fun32 f27
+          >>= \fun33 :: (List a -> Set (List a)) -> fun33 ys30 >>=
+          \arg34 :: List a -> {Cons<:a:> y29 arg34}
+        False -> filter<:a:> >>= \fun35 :: ((a -> Set Bool)
+                                    -> Set (List a -> Set (List a))) -> fun35
+          f27 >>= \fun36 :: (List a -> Set (List a)) -> fun36 ys30
+  }}
+
+flip :: forall a b c. Set ((a -> Set (b -> Set c))
+  -> Set (b -> Set (a -> Set c)))
+flip = {\f37 :: (a -> Set (b -> Set c)) -> {\x38 :: b ->
+  {\y39 :: a -> f37 y39 >>= \fun40 :: (b -> Set c) ->
+  fun40 x38}}}
+
+foldr :: forall a b. Set ((a -> Set (b -> Set b))
+  -> Set (b -> Set (List a -> Set b)))
+foldr = {\f41 :: (a -> Set (b -> Set b)) -> {
+  \c42 :: b -> {\xs43 :: List a -> case xs43 of
+    Nil -> {c42}
+    Cons y44 ys45 -> f41 y44 >>= \fun46 :: (b -> Set b) ->
+      foldr<:a,b:> >>= \fun47 :: ((a -> Set (b -> Set b))
+                          -> Set (b -> Set (List a -> Set b))) -> fun47 f41 >>=
+      \fun48 :: (b -> Set (List a -> Set b)) -> fun48 c42 >>=
+      \fun49 :: (List a -> Set b) -> fun49 ys45 >>=
+      \arg50 :: b -> fun46 arg50}}}
+
+fst :: forall a b. Set (Pair a b -> Set a)
+fst = {\p51 :: Pair a b -> case p51 of
+    Pair x52 y53 -> {x52}}
+
+id :: forall a. Set (a -> Set a)
+id = {\x54 :: a -> {x54}}
+
+length :: forall a. Set (List a -> Set Nat)
+length = {\xxs55 :: List a -> case xxs55 of
+    Nil -> {0}
+    Cons x56 xs57 -> length<:a:> >>= \fun58 :: (List a
+                                        -> Set Nat) -> fun58 xs57 >>=
+      \primOpArg59 :: Nat -> {1 + primOpArg59}}
+
+map :: forall a b. Set ((a -> Set b) -> Set (List a
+  -> Set (List b)))
+map = {\f60 :: (a -> Set b) -> {\xs61 :: List a -> case
+  xs61 of
+    Nil -> {Nil<:b:>}
+    Cons y62 ys63 -> f60 y62 >>= \arg64 :: b -> map<:a,b:>
+      >>= \fun65 :: ((a -> Set b) -> Set (List a
+             -> Set (List b))) -> fun65 f60 >>= \fun66 :: (List a
+                                                   -> Set (List b)) -> fun66
+      ys63 >>= \arg67 :: List b -> {Cons<:b:> arg64 arg67}}}
+
+maybe :: forall a b. Set (b -> Set ((a -> Set b)
+  -> Set (Maybe a -> Set b)))
+maybe = {\n68 :: b -> {\f69 :: (a -> Set b) -> {
+  \m70 :: Maybe a -> case m70 of
+    Nothing -> {n68}
+    Just x71 -> f69 x71}}}
+
+not :: Set (Bool -> Set Bool)
+not = {\x72 :: Bool -> case x72 of
+    True -> {False<::>}
+    False -> {True<::>}}
+
+or :: Set (Bool -> Set (Bool -> Set Bool))
+or = {\x73 :: Bool -> {\y74 :: Bool -> case x73 of
+    True -> {True<::>}
+    False -> case y74 of
+        True -> {True<::>}
+        False -> {False<::>}}}
+
+snd :: forall a b. Set (Pair a b -> Set b)
+snd = {\p75 :: Pair a b -> case p75 of
+    Pair x76 y77 -> {y77}}
