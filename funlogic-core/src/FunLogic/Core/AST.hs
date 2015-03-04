@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 module FunLogic.Core.AST where
 
+import           Control.Applicative
 import           Control.Lens
 import           Data.Data
 import           Data.Foldable (Foldable)
@@ -226,3 +227,7 @@ foldType f g = go where
 foldFunctionType :: (Type -> a -> a) -> (Type -> a) -> Type -> a
 foldFunctionType ff fe (TFun s t) = ff s $ foldFunctionType ff fe t
 foldFunctionType _ fe ty = fe ty
+
+-- | Fold that filters bindings of a module by their names.
+bindingsByName :: (IsBinding a, Choice p, Applicative f) => (BindingName -> Bool) -> Optic' p f a a
+bindingsByName predicate = filtered (views bindingName predicate)

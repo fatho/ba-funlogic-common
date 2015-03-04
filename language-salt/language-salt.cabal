@@ -16,7 +16,8 @@ extra-source-files:  salt/*.salt
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Language.SaLT.AST
+  exposed-modules:     Language.SaLT
+                       Language.SaLT.AST
                      , Language.SaLT.ModBuilder
                      , Language.SaLT.Parser
                      , Language.SaLT.Prelude

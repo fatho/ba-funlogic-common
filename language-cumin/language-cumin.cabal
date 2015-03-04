@@ -16,7 +16,8 @@ extra-source-files:  cumin/*.cumin
 cabal-version:       >=1.10
 
 library
-  exposed-modules:   Language.CuMin.AST
+  exposed-modules:   Language.CuMin
+                     Language.CuMin.AST
                      Language.CuMin.ModBuilder
                      Language.CuMin.Parser
                      Language.CuMin.Prelude

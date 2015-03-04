@@ -13,7 +13,7 @@ import           Test.Hspec
 
 dataConstraintsShouldBe :: [ADT] -> [(Name, [Int])] -> Expectation
 dataConstraintsShouldBe adts constraints =
-  deriveDataInstances adts' `shouldBe` constraints'
+  deriveDataInstances adts' M.empty `shouldBe` constraints'
   where
     adts' = M.fromList $ map (\a -> (_adtName a, a)) adts
     constraints' = M.fromList $ map (\(n,s) -> (n, S.fromList s)) constraints

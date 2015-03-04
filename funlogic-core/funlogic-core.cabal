@@ -16,7 +16,8 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     FunLogic.Core.AST
+  exposed-modules:     FunLogic.Core
+                       FunLogic.Core.AST
                        FunLogic.Core.ModBuilder
                        FunLogic.Core.Parser
                        FunLogic.Core.Pretty
