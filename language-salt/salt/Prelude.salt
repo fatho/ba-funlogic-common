@@ -45,6 +45,11 @@ sMap :: forall a b. (a -> b) -> Set a -> Set b
 sMap = \f :: (a -> b) ->
        \xs :: Set a -> xs >>= \x :: a -> {f x}
 
+guard :: forall a. Bool -> Set a -> Set a
+guard = \b :: Bool -> \x :: Set a -> case b of
+  False -> failed<:Set a:>
+  True  -> x
+
 {- * Functions on Bool -}
 
 not :: Bool -> Bool

@@ -13,7 +13,7 @@ data Bool = False | True
 id :: forall a. a -> a
 id x = x
 
-const :: forall a b.a -> b -> a
+const :: forall a b. a -> b -> a
 const c x = c
 
 flip :: forall a b c. (a -> b -> c) -> b -> a -> c
@@ -31,11 +31,16 @@ snd p = case p of
 
 {- * Non-Determinism -}
 
-choose :: forall a.a -> a -> a
+choose :: forall a. a -> a -> a
 choose x y = let choice :: Bool free
   in case choice of
     False -> x
     True -> y
+
+guard :: forall a. Bool -> a -> a
+guard b x = case b of
+  False -> failed<:a:>
+  True  -> x
 
 {- * Functions on Bool -}
 

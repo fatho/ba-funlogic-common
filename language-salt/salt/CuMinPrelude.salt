@@ -70,6 +70,11 @@ fst :: forall a b. Set (Pair a b -> Set a)
 fst = {\p51 :: Pair a b -> case p51 of
     Pair x52 y53 -> {x52}}
 
+guard :: forall a. Set (Bool -> Set (a -> Set a))
+guard = {\b :: Bool -> {\x :: a -> case b of
+  False -> failed<:Set a:>
+  True  -> {x} } }
+
 id :: forall a. Set (a -> Set a)
 id = {\x54 :: a -> {x54}}
 
