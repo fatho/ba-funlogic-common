@@ -6,6 +6,7 @@ module Language.CuMin.TH
   , cuminPat
   , cuminBinding
   , moduleFromFile
+  , moduleFromFileWithPrelude
   , cuminModule
   , dataToExp
   , module FunLogic.Core.TH
@@ -53,10 +54,13 @@ cuminModule name = makeQQ dataToExp $ \str ->
     check (Right m) = return m
 
 moduleFromFile :: FilePath -> ExpQ
-moduleFromFile path =
+moduleFromFile = moduleFromFileWithPrelude (CuMin.emptyModule "Empty")
+
+moduleFromFileWithPrelude :: CuMin.Module -> FilePath -> ExpQ
+moduleFromFileWithPrelude prelude path =
   runIO (CuMin.buildModuleFromFile path) >>= \case
     Left err -> fail $ show err
-    Right m -> case CuMin.evalTC (CuMin.checkModule m) def def of
+    Right m -> case CuMin.evalTC (CuMin.unsafeIncludeModule prelude >> CuMin.checkModule m) def def of
       Left err -> fail $ show $ PP.plain $ PP.pretty err
       Right _ -> dataToExp m
 

@@ -7,6 +7,7 @@ module Language.SaLT.TH
   , saltBinding
   , saltModule
   , moduleFromFile
+  , moduleFromFileWithPrelude
   , dataToExp
   , module FunLogic.Core.TH
   ) where
@@ -53,10 +54,13 @@ saltModule name = makeQQ dataToExp $ \str ->
     check (Right m) = return m
 
 moduleFromFile :: FilePath -> ExpQ
-moduleFromFile path =
+moduleFromFile = moduleFromFileWithPrelude (SaLT.emptyModule "Empty")
+
+moduleFromFileWithPrelude :: AST.Module -> FilePath -> ExpQ
+moduleFromFileWithPrelude prelude path =
   runIO (SaLT.buildModuleFromFile path) >>= \case
     Left err -> fail $ show err
-    Right m -> case SaLT.evalTC (SaLT.checkModule m) def def of
+    Right m -> case SaLT.evalTC (SaLT.unsafeIncludeModule prelude >> SaLT.checkModule m) def def of
       Left err -> fail $ show $ PP.plain $ PP.pretty err
       Right _ -> dataToExp m
 
