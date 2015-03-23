@@ -51,8 +51,8 @@ prettyExp ex = case ex of
     (PrimAdd, [e1, e2]) -> withPrec prc prettyExp e1 </> char '+' </> withPrec prc prettyExp e2
     -- Nested "==" always require parentheses for clarity.
     (PrimEq, [e1, e2]) -> withPrec (prc + 1) prettyExp e1 </> text "==" </> withPrec (prc + 1) prettyExp e2
-    -- Bind requires parentheses only on the left hand side.
-    (PrimBind, [e, f]) -> withPrec prc prettyExp e </> text ">>=" </> withPrec 0 prettyExp f
+    -- Bind requires parentheses only on the right hand side.
+    (PrimBind, [e, f]) -> withPrec prc prettyExp e </> text ">>=" </> withPrec (prc + 1) prettyExp f
     _ -> error $ "Invalid primitive operation `" ++ show p ++ "` with arguments " ++ show exps ++ "."
   ECon c tys -> hang defaultIndent $ text c <> prettyTypeInstantiations tys
   ESet e -> char '{' <//> prettyExp e <//> char '}'
